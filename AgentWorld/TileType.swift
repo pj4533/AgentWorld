@@ -23,7 +23,7 @@ enum TileType: Int, CaseIterable {
         case .trees:
             return .darkGreen
         case .mountains:
-            return .brown
+            return .gray
         case .water:
             return .blue
         case .swamp:
