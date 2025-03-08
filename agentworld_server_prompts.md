@@ -36,7 +36,7 @@ No Combine, no external dependencies. Provide the updated `ContentView.swift` an
 ### **Prompt 3: World Data Structure and Generation**
 
 ```text
-Now let's implement a `TileType` enum and a `World` struct for a 64x64 grid. We'll also add a function to generate tiles organically, respecting these percentages:
+Now let's implement a `TileType` enum and a `World` struct for a 64x64 grid. We'll also add a function to generate tiles realistically and organically, respecting these percentages:
 
 - Trees: 20%
 - Mountains: 10%
