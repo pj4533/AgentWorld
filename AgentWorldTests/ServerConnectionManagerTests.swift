@@ -19,14 +19,15 @@ struct ServerConnectionManagerTests {
     
     // MARK: - Setup & Teardown
     init() {
-        serverManager = ServerConnectionManager(port: 8000)
+        let world = World()
+        serverManager = ServerConnectionManager(port: 8000, world: world)
     }
     
     // MARK: - Tests
     @Test
     func testInitialization() {
-        // Verify the server initializes with empty agent positions
-        #expect(serverManager.agentPositions.isEmpty)
+        // Verify the server initializes with empty agents in the world
+        #expect(serverManager.world.agents.isEmpty)
     }
     
     @Test

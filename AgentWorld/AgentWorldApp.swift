@@ -10,8 +10,8 @@ import OSLog
 
 @main
 struct AgentWorldApp: App {
-    // Create the server connection manager as a StateObject
-    @StateObject private var serverConnectionManager = ServerConnectionManager()
+    // We don't need the ServerConnectionManager at the app level anymore,
+    // as it's created in the WorldScene based on the world in SimulationViewModel
     private let logger = AppLogger(category: "AgentWorldApp")
     
     init() {
@@ -22,10 +22,8 @@ struct AgentWorldApp: App {
         WindowGroup {
             ContentView()
                 .frame(minWidth: 640, minHeight: 700)
-                .environmentObject(serverConnectionManager)
                 .onDisappear {
-                    // Stop the server when the app closes
-                    serverConnectionManager.stopServer()
+                    // Log when app closes
                     logger.info("AgentWorld application closing")
                 }
         }

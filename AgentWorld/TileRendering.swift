@@ -6,6 +6,7 @@
 //
 
 import SpriteKit
+import AppKit
 
 class TileRenderer {
     private let tileSize: CGFloat
@@ -32,6 +33,62 @@ class TileRenderer {
         case .desert:
             addDesertTexture(to: node)
         }
+        
+        return node
+    }
+    
+    func createAgentNode(withColor color: NSColor, size: CGSize) -> SKSpriteNode {
+        let node = SKSpriteNode(color: .clear, size: size)
+        
+        // Create a circle shape for the agent
+        let agentShape = SKShapeNode(circleOfRadius: tileSize * 0.35)
+        agentShape.fillColor = color
+        agentShape.strokeColor = NSColor.black
+        agentShape.lineWidth = tileSize * 0.05
+        
+        // Add eyes to make it look more like an agent/character
+        let leftEye = SKShapeNode(circleOfRadius: tileSize * 0.08)
+        leftEye.fillColor = .white
+        leftEye.strokeColor = .black
+        leftEye.lineWidth = tileSize * 0.01
+        leftEye.position = CGPoint(x: -tileSize * 0.14, y: tileSize * 0.1)
+        
+        let rightEye = SKShapeNode(circleOfRadius: tileSize * 0.08)
+        rightEye.fillColor = .white
+        rightEye.strokeColor = .black
+        rightEye.lineWidth = tileSize * 0.01
+        rightEye.position = CGPoint(x: tileSize * 0.14, y: tileSize * 0.1)
+        
+        // Add pupils
+        let leftPupil = SKShapeNode(circleOfRadius: tileSize * 0.04)
+        leftPupil.fillColor = .black
+        leftPupil.strokeColor = .clear
+        leftPupil.position = CGPoint(x: tileSize * 0.02, y: 0)
+        
+        let rightPupil = SKShapeNode(circleOfRadius: tileSize * 0.04)
+        rightPupil.fillColor = .black
+        rightPupil.strokeColor = .clear
+        rightPupil.position = CGPoint(x: tileSize * 0.02, y: 0)
+        
+        // Add a smile
+        let smilePath = CGMutablePath()
+        smilePath.move(to: CGPoint(x: -tileSize * 0.15, y: -tileSize * 0.1))
+        smilePath.addQuadCurve(
+            to: CGPoint(x: tileSize * 0.15, y: -tileSize * 0.1),
+            control: CGPoint(x: 0, y: -tileSize * 0.2)
+        )
+        
+        let smile = SKShapeNode(path: smilePath)
+        smile.strokeColor = .black
+        smile.lineWidth = tileSize * 0.03
+        
+        // Assemble the agent
+        leftEye.addChild(leftPupil)
+        rightEye.addChild(rightPupil)
+        agentShape.addChild(leftEye)
+        agentShape.addChild(rightEye)
+        agentShape.addChild(smile)
+        node.addChild(agentShape)
         
         return node
     }

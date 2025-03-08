@@ -34,7 +34,8 @@ struct ContentView: View {
             // Main world view
             SpriteKitContainer(
                 shouldRegenerateWorld: $viewModel.shouldRegenerateWorld,
-                currentTimeStep: $viewModel.currentTimeStep
+                currentTimeStep: $viewModel.currentTimeStep,
+                viewModel: viewModel
             )
             .frame(width: 640, height: 640)
             .aspectRatio(1.0, contentMode: .fit)

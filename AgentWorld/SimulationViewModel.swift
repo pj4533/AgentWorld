@@ -15,6 +15,7 @@ class SimulationViewModel: ObservableObject {
     @Published var isSimulationRunning: Bool = false
     @Published var timeStepInterval: TimeInterval = 60 // seconds between time steps
     @Published var progressToNextStep: Double = 0.0 // Progress indicator (0.0 - 1.0)
+    @Published var world: World
     
     private var simulationTimer: Task<Void, Never>? = nil
     private var progressTimer: Timer? = nil
@@ -29,6 +30,11 @@ class SimulationViewModel: ObservableObject {
     
     // MARK: - Public Interface
     
+    init() {
+        // Initialize with a default world
+        self.world = World.generateWorld()
+    }
+    
     func toggleSimulation() {
         isSimulationRunning.toggle()
         
@@ -41,6 +47,7 @@ class SimulationViewModel: ObservableObject {
     
     func regenerateWorld() {
         shouldRegenerateWorld = true
+        world = World.generateWorld()
     }
     
     func advanceTimeStep() {

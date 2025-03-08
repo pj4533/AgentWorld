@@ -33,6 +33,32 @@ enum TileType: Int, CaseIterable {
         }
     }
     
+    var description: String {
+        switch self {
+        case .grass:
+            return "grass"
+        case .trees:
+            return "trees"
+        case .mountains:
+            return "mountains"
+        case .water:
+            return "water"
+        case .swamp:
+            return "swamp"
+        case .desert:
+            return "desert"
+        }
+    }
+    
+    var isPassable: Bool {
+        switch self {
+        case .mountains, .water:
+            return false
+        case .grass, .trees, .swamp, .desert:
+            return true
+        }
+    }
+    
     static let distribution: [TileType: Double] = [
         .grass: 0.3,
         .trees: 0.2,

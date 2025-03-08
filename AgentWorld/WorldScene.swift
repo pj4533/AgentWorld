@@ -14,14 +14,17 @@ class WorldScene: SKScene, InputHandlerDelegate {
     private var worldRenderer: WorldRenderer!
     private var inputHandler: InputHandler!
     private var currentTimeStep: Int = 0
+    private var serverConnectionManager: ServerConnectionManager!
     
     private let logger = AppLogger(category: "WorldScene")
     
     override func didMove(to view: SKView) {
         self.backgroundColor = .black
         
-        // Generate a new world
-        world = World.generateWorld()
+        if world == nil {
+            // Generate a new world if none was provided
+            world = World.generateWorld()
+        }
         
         // Calculate tile size based on the view size
         let smallerDimension = min(size.width, size.height)
@@ -30,9 +33,14 @@ class WorldScene: SKScene, InputHandlerDelegate {
         // Initialize components
         worldRenderer = WorldRenderer(world: world, tileSize: tileSize)
         inputHandler = InputHandler(delegate: self)
+        serverConnectionManager = ServerConnectionManager(world: world)
         
         // Render the world
         worldRenderer.renderWorld(in: self)
+    }
+    
+    func setWorld(_ newWorld: World) {
+        world = newWorld
     }
     
     override func update(_ currentTime: TimeInterval) {
@@ -74,15 +82,23 @@ class WorldScene: SKScene, InputHandlerDelegate {
     
     /// Simulate a single time step in the world
     private func simulateOneTimeStep() {
-        // This is where you would implement simulation logic for the world
-        // For example:
-        // - Update agent positions
-        // - Grow or deplete resources
-        // - Handle agent interactions
-        // - Apply environmental effects
+        // Increment the current time step
+        let nextTimeStep = currentTimeStep + 1
         
-        // For now, we'll just have a placeholder
-        logger.info("Simulating time step: \(currentTimeStep + 1)")
+        // Send updated observations to all connected agents
+        serverConnectionManager.sendObservationsToAll(timeStep: nextTimeStep)
+        
+        // Log the simulation step
+        logger.info("Simulating time step: \(nextTimeStep)")
+        
+        // Update the UI with new agent positions
+        DispatchQueue.main.async {
+            // Update the world reference in the renderer to reflect changes
+            self.worldRenderer = WorldRenderer(world: self.world, tileSize: self.tileSize)
+            
+            // Re-render the world with the updated agent positions
+            self.worldRenderer.renderWorld(in: self)
+        }
     }
     
     // MARK: - Public Methods
@@ -93,7 +109,14 @@ class WorldScene: SKScene, InputHandlerDelegate {
     }
     
     func regenerateWorld() {
+        // Stop the current server first
+        serverConnectionManager.stopServer()
+        
+        // Generate a new world
         world = World.generateWorld()
+        
+        // Create a new server connection manager with the new world
+        serverConnectionManager = ServerConnectionManager(world: world)
         
         // Create a new WorldRenderer with a fresh cache
         worldRenderer = WorldRenderer(world: world, tileSize: tileSize)

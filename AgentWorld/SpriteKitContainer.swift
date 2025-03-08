@@ -12,12 +12,15 @@ import OSLog
 struct SpriteKitContainer: NSViewRepresentable {
     @Binding var shouldRegenerateWorld: Bool
     @Binding var currentTimeStep: Int
+    @ObservedObject var viewModel: SimulationViewModel
     private let logger = AppLogger(category: "SpriteKitContainer")
     
     init(shouldRegenerateWorld: Binding<Bool> = .constant(false),
-         currentTimeStep: Binding<Int> = .constant(0)) {
+         currentTimeStep: Binding<Int> = .constant(0),
+         viewModel: SimulationViewModel) {
         self._shouldRegenerateWorld = shouldRegenerateWorld
         self._currentTimeStep = currentTimeStep
+        self.viewModel = viewModel
     }
     
     func makeNSView(context: Context) -> SKView {
@@ -28,6 +31,7 @@ struct SpriteKitContainer: NSViewRepresentable {
         // Create and present the scene with square dimensions
         let scene = WorldScene(size: CGSize(width: 640, height: 640))
         scene.scaleMode = .aspectFill
+        scene.setWorld(viewModel.world)
         view.presentScene(scene)
         
         // Store the scene in the coordinator
@@ -41,6 +45,8 @@ struct SpriteKitContainer: NSViewRepresentable {
         
         // Check if we should regenerate the world
         if shouldRegenerateWorld {
+            // Set the new world from the viewModel
+            scene.setWorld(viewModel.world)
             scene.regenerateWorld()
             
             // Reset the flag

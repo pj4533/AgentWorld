@@ -15,6 +15,9 @@ class WorldRenderer {
     // Cache for tile nodes to prevent regeneration
     private var tileNodeCache: [[SKSpriteNode?]] = Array(repeating: Array(repeating: nil, count: World.size), count: World.size)
     
+    // Cache for agent nodes
+    private var agentNodeCache: [String: SKSpriteNode] = [:]
+    
     init(world: World, tileSize: CGFloat) {
         self.world = world
         self.tileSize = tileSize
@@ -25,6 +28,7 @@ class WorldRenderer {
     /// Clears the tile node cache
     public func clearTileCache() {
         tileNodeCache = Array(repeating: Array(repeating: nil, count: World.size), count: World.size)
+        agentNodeCache = [:]
     }
     
     func renderWorld(in scene: SKScene) {
@@ -51,9 +55,48 @@ class WorldRenderer {
                     y: scene.size.height - (CGFloat(y) * tileSize + tileSize/2) // Flip Y-axis
                 )
                 
+                // Set zPosition to ensure tiles are at the bottom
+                tileNode.zPosition = 0
+                
                 // Add to scene
                 scene.addChild(tileNode)
             }
+        }
+        
+        // Render agents
+        renderAgents(in: scene)
+    }
+    
+    private func renderAgents(in scene: SKScene) {
+        // Render all agents in the world
+        for (agentID, agentInfo) in world.agents {
+            // Get cached node or create a new one
+            let agentNode: SKSpriteNode
+            if let cachedNode = agentNodeCache[agentID] {
+                agentNode = cachedNode
+            } else {
+                agentNode = tileRenderer.createAgentNode(
+                    withColor: agentInfo.color,
+                    size: CGSize(width: tileSize, height: tileSize)
+                )
+                agentNodeCache[agentID] = agentNode
+            }
+            
+            // Position the agent
+            let pos = agentInfo.position
+            agentNode.position = CGPoint(
+                x: CGFloat(pos.x) * tileSize + tileSize/2,
+                y: scene.size.height - (CGFloat(pos.y) * tileSize + tileSize/2) // Flip Y-axis
+            )
+            
+            // Set zPosition to ensure agents are above tiles
+            agentNode.zPosition = 10
+            
+            // Add name for identification
+            agentNode.name = "agent-\(agentID)"
+            
+            // Add to scene
+            scene.addChild(agentNode)
         }
     }
 }
