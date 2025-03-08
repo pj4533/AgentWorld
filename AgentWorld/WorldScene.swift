@@ -86,6 +86,8 @@ class WorldScene: SKScene, InputHandlerDelegate {
     
     func regenerateWorld() {
         world = World.generateWorld()
+        
+        // Create a new WorldRenderer with a fresh cache
         worldRenderer = WorldRenderer(world: world, tileSize: tileSize)
         worldRenderer.renderWorld(in: self)
         
