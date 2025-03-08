@@ -88,7 +88,8 @@ Provide the new code or files (e.g., `ServerConnectionManager.swift`). Show how 
 Now let's handle real agent messages:
 
 1. When an agent connects, assign them a random tile location that's not water/mountain.
-2. Each time step, send each agent a JSON with:
+2. Add a special tile at the location to represent the Agent. Each agent gets a random color. Add a nice texture that represents the Agent.
+3. Then send the agent a JSON that describes the current state. Call the model `Observation`:
    {
      "agent_id": "...",
      "currentLocation": {...},
@@ -98,9 +99,11 @@ Now let's handle real agent messages:
      },
      "timeStep": ...
    }
-3. If the agent sends an action like move, validate if it's passable and unoccupied. If valid, update their position. If invalid, send an error JSON.
+4. For each timestep send an updated Observation to each connected agent.
+5. The agents will respond eventually with a command structured like this: `{"action": "move", "targetTile": {1,2}}`
+6. If the agent sends a move action, validate if it's passable and unoccupied. If valid, update their position. If invalid, send an error JSON. Agent can only move one tile each timestep.
 
-We already have the world map, so implement a function `surroundings(for agentID: String) -> [TileInfo]` that returns the local tiles around that agent. Provide code changes in `ServerConnectionManager` and wherever else necessary.
+We already have the world map, so implement a function `surroundings(for agentID: String) -> [TileInfo]` that returns the local tiles around that agent. 
 ```
 
 ### **Prompt 7: Polishing & Error Handling**
