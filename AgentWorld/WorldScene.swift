@@ -8,7 +8,7 @@
 import SpriteKit
 import OSLog
 
-class WorldScene: SKScene, InputHandlerDelegate {
+class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate {
     private var world: World!
     private var tileSize: CGFloat = 10
     private var worldRenderer: WorldRenderer!
@@ -34,6 +34,7 @@ class WorldScene: SKScene, InputHandlerDelegate {
         worldRenderer = WorldRenderer(world: world, tileSize: tileSize)
         inputHandler = InputHandler(delegate: self)
         serverConnectionManager = ServerConnectionManager(world: world)
+        serverConnectionManager.delegate = self
         
         // Render the world
         worldRenderer.renderWorld(in: self)
@@ -117,6 +118,7 @@ class WorldScene: SKScene, InputHandlerDelegate {
         
         // Create a new server connection manager with the new world
         serverConnectionManager = ServerConnectionManager(world: world)
+        serverConnectionManager.delegate = self
         
         // Create a new WorldRenderer with a fresh cache
         worldRenderer = WorldRenderer(world: world, tileSize: tileSize)
@@ -124,5 +126,39 @@ class WorldScene: SKScene, InputHandlerDelegate {
         
         // Reset time step when regenerating world
         currentTimeStep = 0
+    }
+    
+    // MARK: - ServerConnectionManagerDelegate
+    
+    func worldDidUpdate(_ updatedWorld: World) {
+        // The world has been updated, so update the renderer and redraw
+        self.world = updatedWorld
+        
+        // Re-render only when needed
+        DispatchQueue.main.async {
+            self.worldRenderer.renderWorld(in: self)
+        }
+    }
+    
+    func agentDidConnect(id: String, position: (x: Int, y: Int)) {
+        logger.info("Agent connected: \(id) at position (\(position.x), \(position.y))")
+        
+        // Re-render to show the new agent
+        DispatchQueue.main.async {
+            self.worldRenderer.renderWorld(in: self)
+        }
+    }
+    
+    func agentDidDisconnect(id: String) {
+        logger.info("Agent disconnected: \(id)")
+        
+        // Re-render to remove the agent
+        DispatchQueue.main.async {
+            self.worldRenderer.renderWorld(in: self)
+        }
+    }
+    
+    func serverDidEncounterError(_ error: Error) {
+        logger.error("Server error: \(error.localizedDescription)")
     }
 }
