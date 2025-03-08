@@ -20,8 +20,8 @@ struct SpriteKitContainer: NSViewRepresentable {
         view.showsFPS = true
         view.showsNodeCount = true
         
-        // Create and present the scene
-        let scene = WorldScene(size: CGSize(width: 800, height: 600))
+        // Create and present the scene with square dimensions
+        let scene = WorldScene(size: CGSize(width: 640, height: 640))
         scene.scaleMode = .aspectFill
         view.presentScene(scene)
         
@@ -59,7 +59,8 @@ struct ContentView: View {
     var body: some View {
         VStack {
             SpriteKitContainer(shouldRegenerateWorld: $shouldRegenerateWorld)
-                .frame(minWidth: 800, minHeight: 600)
+                .frame(width: 640, height: 640)
+                .aspectRatio(1.0, contentMode: .fit)
             
             Button("Generate New World") {
                 shouldRegenerateWorld = true
