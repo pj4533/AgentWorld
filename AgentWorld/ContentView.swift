@@ -77,61 +77,105 @@ struct ContentView: View {
     @State private var minTimeStepInterval: TimeInterval = 5 // minimum interval in seconds
     @State private var maxTimeStepInterval: TimeInterval = 300 // maximum interval in seconds
     @State private var timeStepAdjustment: TimeInterval = 5 // amount to change by each button press
+    @State private var progressToNextStep: Double = 0.0 // Progress indicator (0.0 - 1.0)
+    @State private var lastStepTime: Date? = nil // When the last step occurred
+    @State private var progressTimer: Timer? = nil // Timer for updating the progress bar
     
     private let logger = AppLogger(category: "ContentView")
+    private let progressUpdateInterval: TimeInterval = 0.1 // Update progress 10 times per second
     
     var body: some View {
         VStack {
             // Top bar with time display
-            HStack {
-                VStack(alignment: .leading) {
-                    Text("Time Step: \(currentTimeStep)")
-                        .font(.headline)
-                    Text("Day \(currentTimeStep / 288), \(formatTimeOfDay(timeStep: currentTimeStep))")
-                        .font(.subheadline)
-                }
-                .padding(.horizontal)
-                
-                Spacer()
-                
-                // Simulation control buttons
-                HStack(spacing: 10) {
-                    Button(action: {
-                        toggleSimulation()
-                    }) {
-                        Image(systemName: isSimulationRunning ? "pause.fill" : "play.fill")
-                            .frame(width: 30, height: 30)
+            VStack(spacing: 8) {
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("Time Step: \(currentTimeStep)")
+                            .font(.headline)
+                        Text("Day \(currentTimeStep / 288), \(formatTimeOfDay(timeStep: currentTimeStep))")
+                            .font(.subheadline)
                     }
-                    .buttonStyle(.bordered)
+                    .padding(.horizontal)
                     
-                    // Time step speed control with + and - buttons
-                    HStack(spacing: 8) {
+                    Spacer()
+                    
+                    // Simulation control buttons
+                    HStack(spacing: 10) {
                         Button(action: {
-                            decreaseTimeStepInterval()
+                            toggleSimulation()
                         }) {
-                            Image(systemName: "minus")
-                                .frame(width: 24, height: 24)
+                            Image(systemName: isSimulationRunning ? "pause.fill" : "play.fill")
+                                .frame(width: 30, height: 30)
                         }
                         .buttonStyle(.bordered)
-                        .disabled(timeStepInterval <= minTimeStepInterval)
                         
-                        // Display current time step interval
-                        VStack(alignment: .center, spacing: 2) {
-                            Text("\(Int(timeStepInterval))s")
-                                .font(.headline)
-                            Text("per step")
-                                .font(.caption)
+                        // Time step speed control with + and - buttons
+                        HStack(spacing: 8) {
+                            Button(action: {
+                                decreaseTimeStepInterval()
+                            }) {
+                                Image(systemName: "minus")
+                                    .frame(width: 24, height: 24)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(timeStepInterval <= minTimeStepInterval)
+                            
+                            // Display current time step interval
+                            VStack(alignment: .center, spacing: 2) {
+                                Text("\(Int(timeStepInterval))s")
+                                    .font(.headline)
+                                Text("per step")
+                                    .font(.caption)
+                            }
+                            .frame(width: 80)
+                            
+                            Button(action: {
+                                increaseTimeStepInterval()
+                            }) {
+                                Image(systemName: "plus")
+                                    .frame(width: 24, height: 24)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(timeStepInterval >= maxTimeStepInterval)
                         }
-                        .frame(width: 80)
-                        
-                        Button(action: {
-                            increaseTimeStepInterval()
-                        }) {
-                            Image(systemName: "plus")
-                                .frame(width: 24, height: 24)
+                    }
+                    .padding(.horizontal)
+                }
+                
+                // Progress bar for next time step
+                HStack {
+                    Text("Next step:")
+                        .font(.caption)
+                        .frame(width: 60, alignment: .leading)
+                    
+                    // Progress bar
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            // Background of the progress bar
+                            Rectangle()
+                                .foregroundColor(Color.gray.opacity(0.3))
+                                .frame(height: 8)
+                                .cornerRadius(4)
+                            
+                            // Filled portion of the progress bar
+                            Rectangle()
+                                .foregroundColor(isSimulationRunning ? Color.blue : Color.gray)
+                                .frame(width: max(geometry.size.width * progressToNextStep, 0), height: 8)
+                                .cornerRadius(4)
                         }
-                        .buttonStyle(.bordered)
-                        .disabled(timeStepInterval >= maxTimeStepInterval)
+                    }
+                    .frame(height: 8)
+                    
+                    // Time remaining display
+                    if isSimulationRunning {
+                        let secondsRemaining = Int(timeStepInterval * (1.0 - progressToNextStep))
+                        Text("\(secondsRemaining)s")
+                            .font(.caption)
+                            .frame(width: 40, alignment: .trailing)
+                    } else {
+                        Text("Paused")
+                            .font(.caption)
+                            .frame(width: 40, alignment: .trailing)
                     }
                 }
                 .padding(.horizontal)
@@ -160,8 +204,15 @@ struct ContentView: View {
                 .disabled(isSimulationRunning)
             }
         }
+        .onAppear {
+            // Initialize the timer if simulation is already running
+            if isSimulationRunning {
+                startProgressTimer()
+            }
+        }
         .onDisappear {
             cancelSimulation()
+            stopProgressTimer()
         }
     }
     
@@ -189,6 +240,13 @@ struct ContentView: View {
     private func startSimulation() {
         cancelSimulation() // Cancel any existing timer
         
+        // Start the progress timer to update the progress bar
+        startProgressTimer()
+        
+        // Reset last step time and progress
+        lastStepTime = Date()
+        progressToNextStep = 0.0
+        
         simulationTimer = Task { @MainActor in
             do {
                 while !Task.isCancelled {
@@ -200,6 +258,10 @@ struct ContentView: View {
                         // Advance the time step on the main actor
                         advanceTimeStep()
                         
+                        // Reset the progress bar and last step time
+                        progressToNextStep = 0.0
+                        lastStepTime = Date()
+                        
                         // Debug print to see if this is being called
                         logger.debug("Auto-advancing to time step: \(currentTimeStep)")
                     }
@@ -210,10 +272,32 @@ struct ContentView: View {
         }
     }
     
+    // Start timer for updating the progress bar
+    private func startProgressTimer() {
+        stopProgressTimer() // Stop any existing timer
+        
+        // Create a timer that updates the progress bar
+        progressTimer = Timer.scheduledTimer(withTimeInterval: progressUpdateInterval, repeats: true) { _ in
+            guard let lastStepTime = self.lastStepTime, 
+                  self.isSimulationRunning else { return }
+            
+            // Calculate progress (0.0 to 1.0)
+            let elapsedTime = Date().timeIntervalSince(lastStepTime)
+            self.progressToNextStep = min(elapsedTime / self.timeStepInterval, 1.0)
+        }
+    }
+    
+    // Stop the progress timer
+    private func stopProgressTimer() {
+        progressTimer?.invalidate()
+        progressTimer = nil
+    }
+    
     // Cancel the simulation timer
     private func cancelSimulation() {
         simulationTimer?.cancel()
         simulationTimer = nil
+        stopProgressTimer()
     }
     
     // Restart the simulation after changing interval
@@ -225,7 +309,15 @@ struct ContentView: View {
     // Advance the simulation by one time step
     private func advanceTimeStep() {
         currentTimeStep += 1
-        // Additional logic for time step advancement could go here
+        
+        // If not running in auto mode but manually stepped, update the progress display
+        if !isSimulationRunning {
+            progressToNextStep = 0.0
+        } else {
+            // Reset the progress bar and last step time for continuous running
+            progressToNextStep = 0.0
+            lastStepTime = Date()
+        }
     }
     
     // Decrease the time step interval (speed up simulation - minus button)
