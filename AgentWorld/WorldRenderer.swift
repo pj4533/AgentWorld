@@ -68,8 +68,12 @@ class WorldRenderer {
     }
     
     private func renderAgents(in scene: SKScene) {
+        // First, log debug info about all agents being rendered
+        print("🤖 Rendering \(world.agents.count) agents in the world")
+        
         // Render all agents in the world
         for (agentID, agentInfo) in world.agents {
+            print("🤖 Rendering agent \(agentID) at position (\(agentInfo.position.x), \(agentInfo.position.y))")
             // Get cached node or create a new one
             let agentNode: SKSpriteNode
             if let cachedNode = agentNodeCache[agentID] {
@@ -95,8 +99,23 @@ class WorldRenderer {
             // Add name for identification
             agentNode.name = "agent-\(agentID)"
             
-            // Add to scene
+            // Update the label with the correct agent ID
+            if let label = agentNode.childNode(withName: "//SKLabelNode") as? SKLabelNode {
+                label.text = String(agentID.prefix(8))
+            }
+            
+            // Make sure the agent is visible even if it's at the edge of the screen
+            agentNode.setScale(1.0) // Reset scale in case it was animated
+            
+            // Add to scene with a brief attention-getting animation
             scene.addChild(agentNode)
+            
+            // Add a brief highlight animation when first added
+            let highlightAction = SKAction.sequence([
+                SKAction.scale(to: 1.5, duration: 0.2),
+                SKAction.scale(to: 1.0, duration: 0.2)
+            ])
+            agentNode.run(highlightAction)
         }
     }
 }

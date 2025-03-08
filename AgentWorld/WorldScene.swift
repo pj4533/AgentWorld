@@ -143,9 +143,23 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
     func agentDidConnect(id: String, position: (x: Int, y: Int)) {
         logger.info("Agent connected: \(id) at position (\(position.x), \(position.y))")
         
-        // Re-render to show the new agent
+        // Debug logging to verify the agent was added to the world data
+        if let agent = world.agents[id] {
+            logger.info("✅ Agent \(id) successfully added to world at (\(agent.position.x), \(agent.position.y))")
+        } else {
+            logger.error("❌ Agent \(id) not found in world data after connection!")
+        }
+        
+        // Create a new WorldRenderer to ensure it has fresh data
         DispatchQueue.main.async {
+            // Explicitly recreate the renderer to ensure it sees the updated world
+            self.worldRenderer = WorldRenderer(world: self.world, tileSize: self.tileSize)
             self.worldRenderer.renderWorld(in: self)
+            
+            // Debug - log all agents in the world after rendering
+            for (agentId, agent) in self.world.agents {
+                self.logger.info("After render: Agent \(agentId) in world at position (\(agent.position.x), \(agent.position.y))")
+            }
         }
     }
     

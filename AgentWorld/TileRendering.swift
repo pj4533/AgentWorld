@@ -40,47 +40,57 @@ class TileRenderer {
     func createAgentNode(withColor color: NSColor, size: CGSize) -> SKSpriteNode {
         let node = SKSpriteNode(color: .clear, size: size)
         
-        // Create a circle shape for the agent
-        let agentShape = SKShapeNode(circleOfRadius: tileSize * 0.35)
+        // Create a bright highlight under the agent for better visibility
+        let highlight = SKShapeNode(circleOfRadius: tileSize * 0.45)
+        highlight.fillColor = NSColor.yellow
+        highlight.strokeColor = NSColor.orange
+        highlight.lineWidth = tileSize * 0.08
+        highlight.alpha = 0.5
+        highlight.zPosition = 0
+        node.addChild(highlight)
+        
+        // Create a circle shape for the agent (slightly larger)
+        let agentShape = SKShapeNode(circleOfRadius: tileSize * 0.40)
         agentShape.fillColor = color
-        agentShape.strokeColor = NSColor.black
-        agentShape.lineWidth = tileSize * 0.05
+        agentShape.strokeColor = NSColor.white
+        agentShape.lineWidth = tileSize * 0.08
+        agentShape.zPosition = 1
         
         // Add eyes to make it look more like an agent/character
-        let leftEye = SKShapeNode(circleOfRadius: tileSize * 0.08)
+        let leftEye = SKShapeNode(circleOfRadius: tileSize * 0.09)
         leftEye.fillColor = .white
         leftEye.strokeColor = .black
-        leftEye.lineWidth = tileSize * 0.01
-        leftEye.position = CGPoint(x: -tileSize * 0.14, y: tileSize * 0.1)
+        leftEye.lineWidth = tileSize * 0.02
+        leftEye.position = CGPoint(x: -tileSize * 0.15, y: tileSize * 0.1)
         
-        let rightEye = SKShapeNode(circleOfRadius: tileSize * 0.08)
+        let rightEye = SKShapeNode(circleOfRadius: tileSize * 0.09)
         rightEye.fillColor = .white
         rightEye.strokeColor = .black
-        rightEye.lineWidth = tileSize * 0.01
-        rightEye.position = CGPoint(x: tileSize * 0.14, y: tileSize * 0.1)
+        rightEye.lineWidth = tileSize * 0.02
+        rightEye.position = CGPoint(x: tileSize * 0.15, y: tileSize * 0.1)
         
         // Add pupils
-        let leftPupil = SKShapeNode(circleOfRadius: tileSize * 0.04)
+        let leftPupil = SKShapeNode(circleOfRadius: tileSize * 0.05)
         leftPupil.fillColor = .black
         leftPupil.strokeColor = .clear
         leftPupil.position = CGPoint(x: tileSize * 0.02, y: 0)
         
-        let rightPupil = SKShapeNode(circleOfRadius: tileSize * 0.04)
+        let rightPupil = SKShapeNode(circleOfRadius: tileSize * 0.05)
         rightPupil.fillColor = .black
         rightPupil.strokeColor = .clear
         rightPupil.position = CGPoint(x: tileSize * 0.02, y: 0)
         
         // Add a smile
         let smilePath = CGMutablePath()
-        smilePath.move(to: CGPoint(x: -tileSize * 0.15, y: -tileSize * 0.1))
+        smilePath.move(to: CGPoint(x: -tileSize * 0.18, y: -tileSize * 0.1))
         smilePath.addQuadCurve(
-            to: CGPoint(x: tileSize * 0.15, y: -tileSize * 0.1),
+            to: CGPoint(x: tileSize * 0.18, y: -tileSize * 0.1),
             control: CGPoint(x: 0, y: -tileSize * 0.2)
         )
         
         let smile = SKShapeNode(path: smilePath)
         smile.strokeColor = .black
-        smile.lineWidth = tileSize * 0.03
+        smile.lineWidth = tileSize * 0.04
         
         // Assemble the agent
         leftEye.addChild(leftPupil)
@@ -89,6 +99,23 @@ class TileRenderer {
         agentShape.addChild(rightEye)
         agentShape.addChild(smile)
         node.addChild(agentShape)
+        
+        // Add a pulsing animation to make the agent more noticeable
+        let pulseAction = SKAction.sequence([
+            SKAction.scale(to: 1.2, duration: 0.5),
+            SKAction.scale(to: 1.0, duration: 0.5)
+        ])
+        let pulseForever = SKAction.repeatForever(pulseAction)
+        highlight.run(pulseForever)
+        
+        // The ID is set later in the WorldRenderer through the node.name property
+        // We don't have access to the agentId here, so we'll add a generic label
+        let label = SKLabelNode(text: "AGENT")
+        label.fontSize = tileSize * 0.25
+        label.fontColor = .white
+        label.position = CGPoint(x: 0, y: -tileSize * 0.6)
+        label.zPosition = 2
+        node.addChild(label)
         
         return node
     }
