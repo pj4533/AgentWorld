@@ -84,6 +84,11 @@ class WorldScene: SKScene, InputHandlerDelegate {
     
     // MARK: - Public Methods
     
+    /// Get the current time step in the world
+    func getCurrentTimeStep() -> Int {
+        return currentTimeStep
+    }
+    
     func regenerateWorld() {
         world = World.generateWorld()
         

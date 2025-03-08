@@ -49,8 +49,12 @@ struct SpriteKitContainer: NSViewRepresentable {
             }
         }
         
-        // Update the world to the current time step
-        scene.updateToTimeStep(currentTimeStep)
+        // Ensure the world scene has the latest time step
+        // This is critical for play button functionality
+        if scene.getCurrentTimeStep() != currentTimeStep {
+            print("Updating scene to time step: \(currentTimeStep)")
+            scene.updateToTimeStep(currentTimeStep)
+        }
     }
     
     func makeCoordinator() -> Coordinator {
@@ -162,18 +166,23 @@ struct ContentView: View {
     private func startSimulation() {
         cancelSimulation() // Cancel any existing timer
         
-        simulationTimer = Task {
-            while !Task.isCancelled {
-                do {
-                    try await Task.sleep(nanoseconds: UInt64(timeStepInterval * 1_000_000_000))
+        simulationTimer = Task { @MainActor in
+            do {
+                while !Task.isCancelled {
+                    // Sleep for the specified interval
+                    try await Task.sleep(for: .seconds(timeStepInterval))
+                    
+                    // Double check if we're still running and not cancelled
                     if !Task.isCancelled {
-                        await MainActor.run {
-                            advanceTimeStep()
-                        }
+                        // Advance the time step on the main actor
+                        advanceTimeStep()
+                        
+                        // Debug print to see if this is being called
+                        print("Auto-advancing to time step: \(currentTimeStep)")
                     }
-                } catch {
-                    break
                 }
+            } catch {
+                print("Simulation task was cancelled: \(error)")
             }
         }
     }
