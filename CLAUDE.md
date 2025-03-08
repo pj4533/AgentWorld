@@ -39,5 +39,10 @@
   - `WorldRendererTests.swift`: Tests for world rendering
   - `InputHandlerTests.swift`: Tests for input handling
   - `WorldSceneTests.swift`: Tests for the scene controller
+
+Refer to these specs if you are confused about goals:
 - Server specification: `agentworld_server_spec.md`
+- CLI agent specification: `agentworld_agent_spec.md`
+
+Refer to this documentation when adding tests:
 - SwiftTesting documentation: `swifttesting_documentation.md`
