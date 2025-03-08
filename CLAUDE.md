@@ -17,11 +17,11 @@
 - **Imports**: Group by framework (SwiftUI, SpriteKit, etc.)
 - **Naming**: PascalCase for types (structs, classes, enums), camelCase for properties/methods
 - **Parameters**: Use named parameters for clarity
-- **Tests**: Prefix test methods with "test", use @MainActor for UI tests
+- **Tests**: Use SwiftTesting with `@Suite` and `@Test` annotations
 - **Formatting**: Follow standard Swift formatting conventions
 - **Documentation**: Document public APIs with /// comments
 - **Error Handling**: Use Swift's Result type or try/catch with descriptive error messages
-- **Testing**: Use SwiftTesting for all tests, never use XCTest (refer to included SwiftTesting documentation, if needed)
+- **Testing**: Use SwiftTesting for all tests (refer to included SwiftTesting documentation, if needed)
 
 ## Project Structure
 - Main app: `AgentWorld/`
@@ -39,6 +39,5 @@
   - `WorldRendererTests.swift`: Tests for world rendering
   - `InputHandlerTests.swift`: Tests for input handling
   - `WorldSceneTests.swift`: Tests for the scene controller
-- UI tests: `AgentWorldUITests/`
 - Server specification: `agentworld_server_spec.md`
 - SwiftTesting documentation: `swifttesting_documentation.md`
