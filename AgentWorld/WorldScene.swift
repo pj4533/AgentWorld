@@ -21,8 +21,8 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
     // Camera for zooming and panning
     private var cameraNode: SKCameraNode!
     
-    // For tracking camera position directly
-    private var targetCameraPosition: CGPoint = .zero
+    // Old tracking variables (no longer used)
+    private var oldTargetCameraPosition: CGPoint = .zero
     
     // Only update camera in the update method for smooth movement
     private var needsCameraUpdate = false
@@ -82,53 +82,77 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         world = newWorld
     }
     
-    override func update(_ currentTime: TimeInterval) {
-        // Game loop updates would go here
-    }
-    
     // MARK: - Input Handling
     
-    // Track panning with absolute positions
-    private var panningStartPoint: CGPoint?
-    private var cameraStartPosition: CGPoint?
+    // Target-based camera panning system with smooth interpolation
+    private var isDragging = false
+    private var lastUpdateTime: TimeInterval = 0
+    private var hasTargetPosition = false
+    private var cameraTargetPosition = CGPoint.zero
+    
+    override func update(_ currentTime: TimeInterval) {
+        // Game loop updates would go here
+        
+        // Handle camera position updates in the main update loop for smoother movement
+        if hasTargetPosition && cameraNode.position != cameraTargetPosition {
+            // Calculate a smooth interpolation to the target position
+            let smoothFactor: CGFloat = 0.5 // Higher = faster movement
+            let dx = cameraTargetPosition.x - cameraNode.position.x
+            let dy = cameraTargetPosition.y - cameraNode.position.y
+            
+            // Move camera towards target using interpolation
+            // This smooths out the movement significantly
+            cameraNode.position = CGPoint(
+                x: cameraNode.position.x + dx * smoothFactor,
+                y: cameraNode.position.y + dy * smoothFactor
+            )
+            
+            // Update timing for next frame
+            lastUpdateTime = currentTime
+        }
+    }
     
     override func mouseDown(with event: NSEvent) {
-        // Record starting points for panning
-        panningStartPoint = event.location(in: self)
-        cameraStartPosition = cameraNode.position
+        // Start panning
+        isDragging = true
         
-        // Only pass to input handler for actual clicks, not panning
+        // Initialize at current position (no movement yet)
+        cameraTargetPosition = cameraNode.position
+        hasTargetPosition = true
+        
+        // Only pass to input handler for actual clicks
         if event.clickCount > 0 {
             inputHandler.handleMouseDown(with: event, in: self)
         }
     }
     
     override func mouseDragged(with event: NSEvent) {
-        guard let startPoint = panningStartPoint,
-              let startCamera = cameraStartPosition else { return }
+        // Skip if we're not in dragging mode
+        guard isDragging else { return }
         
-        // Get current location in the view's coordinate space
-        let currentPoint = event.location(in: self)
+        // Filter out tiny movements that can cause jitter
+        let dx = event.deltaX
+        let dy = event.deltaY
         
-        // Calculate delta
-        let dx = currentPoint.x - startPoint.x
-        let dy = currentPoint.y - startPoint.y
+        // Apply sensitivity - higher = faster panning
+        let sensitivity: CGFloat = 2.0
         
-        // Apply panning sensitivity
-        let panSensitivity: CGFloat = 3.0
+        // Calculate new target position based on current target (not current camera position)
+        let newTargetX = cameraTargetPosition.x - dx * sensitivity / currentZoom
+        let newTargetY = cameraTargetPosition.y + dy * sensitivity / currentZoom
         
-        // Set new position directly
-        let newX = startCamera.x - (dx * panSensitivity) / currentZoom
-        let newY = startCamera.y - (dy * panSensitivity) / currentZoom
-        
-        // Update camera position directly (no interim step)
-        let constrainedPosition = constrainPositionToBounds(CGPoint(x: newX, y: newY))
-        cameraNode.position = constrainedPosition
+        // Update target position with constraints
+        cameraTargetPosition = constrainPositionToBounds(CGPoint(x: newTargetX, y: newTargetY))
     }
     
     override func mouseUp(with event: NSEvent) {
-        panningStartPoint = nil
-        cameraStartPosition = nil
+        // End dragging mode
+        isDragging = false
+        
+        // Stop targeting after a short delay to allow smooth finish
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            self?.hasTargetPosition = false
+        }
     }
     
     // Constrain position without changing it (pure function)
