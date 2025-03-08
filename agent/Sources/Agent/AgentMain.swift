@@ -7,7 +7,7 @@ fileprivate let logger = Logger(subsystem: "com.agentworld.agent", category: "Ag
 
 // MARK: - Agent Command
 struct AgentCommand: ParsableCommand {
-    static var configuration = CommandConfiguration(
+    static let configuration = CommandConfiguration(
         commandName: "agent",
         abstract: "A client agent for AgentWorld 🌎",
         version: "1.0.0"
