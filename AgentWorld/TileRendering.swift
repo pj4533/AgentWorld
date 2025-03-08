@@ -58,7 +58,7 @@ class TileRenderer {
             )
             
             let blade = SKShapeNode(path: bladePath)
-            blade.strokeColor = NSColor.green.blended(withFraction: 0.2, of: .yellow) ?? .green
+            blade.strokeColor = NSColor(red: 0.8, green: 0.9, blue: 0.0, alpha: 1.0) // Yellowish green
             blade.lineWidth = tileSize * 0.08
             blade.lineCap = .round
             
@@ -69,7 +69,7 @@ class TileRenderer {
         let patchCount = Int.random(in: 2...4)
         for _ in 0..<patchCount {
             let patch = SKShapeNode(circleOfRadius: tileSize * 0.1)
-            patch.fillColor = NSColor.green.blended(withFraction: 0.3, of: .black) ?? .darkGreen
+            patch.fillColor = NSColor(red: 0.0, green: 0.4, blue: 0.0, alpha: 1.0) // Darker green
             patch.strokeColor = .clear
             patch.alpha = 0.4
             patch.position = CGPoint(
@@ -95,7 +95,7 @@ class TileRenderer {
             
             // Tree foliage
             let foliage = SKShapeNode(circleOfRadius: tileSize * 0.2)
-            foliage.fillColor = NSColor.darkGreen.blended(withFraction: 0.15, of: .black) ?? .darkGreen
+            foliage.fillColor = NSColor(red: 0.0, green: 0.35, blue: 0.0, alpha: 1.0) // Very dark green
             foliage.strokeColor = .clear
             foliage.position = CGPoint(x: 0, y: trunk.frame.size.height/2 + foliage.frame.size.height/3)
             
@@ -113,7 +113,7 @@ class TileRenderer {
         trianglePath.closeSubpath()
         
         let mountain = SKShapeNode(path: trianglePath)
-        mountain.fillColor = NSColor.gray.blended(withFraction: 0.2, of: .white) ?? .gray
+        mountain.fillColor = NSColor(red: 0.7, green: 0.7, blue: 0.7, alpha: 1.0) // Light gray
         mountain.strokeColor = .clear
         
         // Add snow cap
@@ -146,7 +146,7 @@ class TileRenderer {
             )
             
             let wave = SKShapeNode(path: wavePath)
-            wave.strokeColor = NSColor.blue.blended(withFraction: 0.5, of: .white) ?? .blue
+            wave.strokeColor = NSColor(red: 0.5, green: 0.5, blue: 1.0, alpha: 1.0) // Light blue
             wave.lineWidth = 1
             
             node.addChild(wave)
@@ -160,7 +160,7 @@ class TileRenderer {
         let patchesCount = Int.random(in: 2...4)
         for _ in 0..<patchesCount {
             let patch = SKShapeNode(circleOfRadius: tileSize * CGFloat.random(in: 0.1...0.25))
-            patch.fillColor = NSColor.darkGreen.blended(withFraction: 0.3, of: .black) ?? .darkGreen
+            patch.fillColor = NSColor(red: 0.0, green: 0.3, blue: 0.0, alpha: 1.0) // Dark green for swamp
             patch.strokeColor = .clear
             patch.alpha = 0.6
             patch.position = CGPoint(
@@ -199,14 +199,14 @@ class TileRenderer {
         )
         
         let dune = SKShapeNode(path: dunePath)
-        dune.strokeColor = NSColor.yellow.blended(withFraction: 0.2, of: .orange) ?? .yellow
+        dune.strokeColor = NSColor(red: 0.9, green: 0.7, blue: 0.0, alpha: 1.0) // Orange-ish yellow
         dune.lineWidth = 2
         
         // Add small dots for sand texture
         let dotsCount = Int.random(in: 5...10)
         for _ in 0..<dotsCount {
             let dot = SKShapeNode(circleOfRadius: tileSize * 0.02)
-            dot.fillColor = NSColor.yellow.blended(withFraction: 0.3, of: .brown) ?? .yellow
+            dot.fillColor = NSColor(red: 0.8, green: 0.6, blue: 0.3, alpha: 1.0) // Brownish yellow
             dot.strokeColor = .clear
             dot.position = CGPoint(
                 x: CGFloat.random(in: -node.size.width/2...node.size.width/2),

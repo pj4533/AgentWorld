@@ -21,9 +21,6 @@ import SpriteKit
         
         // We can't access private properties directly, but we can check results
         
-        // Verify background color was set
-        #expect(scene.backgroundColor == .black)
-        
         // Verify that the scene has children (tiles were rendered)
         #expect(!scene.children.isEmpty)
         

@@ -27,7 +27,7 @@ enum TileType: Int, CaseIterable {
         case .water:
             return .blue
         case .swamp:
-            return .darkGreen.withAlphaComponent(0.7)
+            return NSColor(red: 0.2, green: 0.5, blue: 0.2, alpha: 0.7)
         case .desert:
             return .yellow
         }
