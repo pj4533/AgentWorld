@@ -65,8 +65,12 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         let worldHeight = CGFloat(World.size) * tileSize
         cameraNode.position = CGPoint(x: worldWidth / 2, y: worldHeight / 2)
         
-        // Make sure scale is properly initialized
+        // Initialize camera zoom
         cameraNode.setScale(1.0 / currentZoom)
+        
+        // Initialize target values for smooth interpolation
+        targetZoom = currentZoom
+        cameraTargetPosition = cameraNode.position
         
         // Add the camera to the scene
         self.addChild(cameraNode)
@@ -84,11 +88,15 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
     
     // MARK: - Input Handling
     
-    // Target-based camera panning system with smooth interpolation
+    // Target-based camera system with smooth interpolation for both panning and zooming
     private var isDragging = false
     private var lastUpdateTime: TimeInterval = 0
     private var hasTargetPosition = false
     private var cameraTargetPosition = CGPoint.zero
+    
+    // Zoom interpolation
+    private var targetZoom: CGFloat = 1.0
+    private var hasTargetZoom = false
     
     override func update(_ currentTime: TimeInterval) {
         // Game loop updates would go here
@@ -96,20 +104,41 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         // Handle camera position updates in the main update loop for smoother movement
         if hasTargetPosition && cameraNode.position != cameraTargetPosition {
             // Calculate a smooth interpolation to the target position
-            let smoothFactor: CGFloat = 0.5 // Higher = faster movement
+            let positionSmoothFactor: CGFloat = 0.5 // Higher = faster movement
             let dx = cameraTargetPosition.x - cameraNode.position.x
             let dy = cameraTargetPosition.y - cameraNode.position.y
             
             // Move camera towards target using interpolation
             // This smooths out the movement significantly
             cameraNode.position = CGPoint(
-                x: cameraNode.position.x + dx * smoothFactor,
-                y: cameraNode.position.y + dy * smoothFactor
+                x: cameraNode.position.x + dx * positionSmoothFactor,
+                y: cameraNode.position.y + dy * positionSmoothFactor
             )
-            
-            // Update timing for next frame
-            lastUpdateTime = currentTime
         }
+        
+        // Handle zoom interpolation in the update loop
+        if hasTargetZoom && abs(currentZoom - targetZoom) > 0.001 {
+            // Calculate a smooth interpolation to the target zoom
+            let zoomSmoothFactor: CGFloat = 0.3 // Controls zoom speed
+            let dZoom = targetZoom - currentZoom
+            
+            // Update the current zoom with smoothing
+            let newZoom = currentZoom + dZoom * zoomSmoothFactor
+            
+            // Apply the new zoom
+            cameraNode.setScale(1.0 / newZoom)
+            currentZoom = newZoom
+            
+            // If we're very close to the target, just set it exactly
+            if abs(currentZoom - targetZoom) < 0.01 {
+                currentZoom = targetZoom
+                cameraNode.setScale(1.0 / currentZoom)
+                hasTargetZoom = false
+            }
+        }
+        
+        // Update timing for next frame
+        lastUpdateTime = currentTime
     }
     
     override func mouseDown(with event: NSEvent) {
@@ -194,32 +223,21 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
     func handleScrollWheel(with event: NSEvent) {
         logger.debug("Direct scroll wheel handling with scrollingDeltaY: \(event.scrollingDeltaY)")
         
-        // Handle smooth scrolling properly
-        let zoomAmount: CGFloat = 0.05
-        
         // Only process if there's actual scroll delta
         if abs(event.scrollingDeltaY) > 0.1 {
             // Reversed direction - now scrolling up (negative scrollingDeltaY) means zoom out
             let zoomDirection: CGFloat = event.scrollingDeltaY > 0 ? 1 : -1
             
+            // Faster zoom amount for scroll wheel
+            let zoomAmount: CGFloat = 0.15 * zoomDirection
+            
             // Get mouse location in scene coordinates to zoom toward that point
             let mouseLocation = event.location(in: self)
             
-            changeZoom(by: zoomDirection * zoomAmount, towardPoint: mouseLocation)
+            // Apply smoother zooming with larger increments
+            smoothZoom(by: zoomAmount, towardPoint: mouseLocation)
         }
     }
-    
-    // We don't need to override scrollWheel since we're handling it in ZoomableSkView
-    // This prevents duplicate processing which was causing the strange zoom behavior
-    /*
-    override func scrollWheel(with event: NSEvent) {
-        // The standard event handler - log info but forward to our custom handler
-        logger.debug("Scene scrollWheel received: deltaY=\(event.deltaY)")
-        
-        // Use our dedicated handler
-        handleScrollWheel(with: event)
-    }
-    */
     
     // Add keyboard control for zooming as an alternative method
     override func keyDown(with event: NSEvent) {
@@ -229,10 +247,10 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
             case "=", "+": // Zoom in with plus key
                 // For keyboard zoom, use center of screen
                 let centerPoint = CGPoint(x: size.width / 2, y: size.height / 2)
-                changeZoom(by: 0.2, towardPoint: centerPoint)
+                smoothZoom(by: 0.5, towardPoint: centerPoint)
             case "-", "_": // Zoom out with minus key
                 let centerPoint = CGPoint(x: size.width / 2, y: size.height / 2)
-                changeZoom(by: -0.2, towardPoint: centerPoint)
+                smoothZoom(by: -0.5, towardPoint: centerPoint)
             case "0":      // Reset zoom
                 resetZoom()
             default:
@@ -242,52 +260,58 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         }
     }
     
-    private func changeZoom(by amount: CGFloat, towardPoint: CGPoint? = nil) {
-        var newZoom = currentZoom + amount
+    // New smooth zoom method that uses interpolation
+    private func smoothZoom(by amount: CGFloat, towardPoint: CGPoint? = nil) {
+        // Calculate new target zoom level
+        let newTargetZoom = max(minZoom, min(maxZoom, currentZoom + amount))
         
-        // Constrain zoom within min/max limits
-        newZoom = max(minZoom, min(maxZoom, newZoom))
-        
-        if newZoom != currentZoom {
-            // If a specific point is provided, zoom toward that point
-            var newCameraPosition = cameraNode.position
+        // Only proceed if we're actually changing zoom
+        if newTargetZoom != targetZoom {
+            targetZoom = newTargetZoom
+            hasTargetZoom = true
             
+            // If we're zooming toward a specific point, update camera target position
             if let zoomPoint = towardPoint {
                 // Calculate vector from zoom point to camera
                 let vectorX = cameraNode.position.x - zoomPoint.x
                 let vectorY = cameraNode.position.y - zoomPoint.y
                 
                 // Scale factor based on how much we're zooming
-                let zoomFactor = 1.0 - (newZoom / currentZoom)
+                let zoomFactor = 1.0 - (targetZoom / currentZoom)
                 
-                // Move camera based on zoom point direction and zoom amount
-                newCameraPosition = CGPoint(
+                // Update the target camera position 
+                cameraTargetPosition = CGPoint(
                     x: cameraNode.position.x + (vectorX * zoomFactor),
                     y: cameraNode.position.y + (vectorY * zoomFactor)
                 )
+                
+                // Constrain the target position
+                cameraTargetPosition = constrainPositionToBounds(cameraTargetPosition)
+                hasTargetPosition = true
             }
             
-            logger.debug("Zoom changing: \(currentZoom) to \(newZoom)")
-            
-            // Apply zoom directly
-            cameraNode.setScale(1.0 / newZoom)
-            currentZoom = newZoom
-            
-            // After zooming, ensure camera remains within bounds
-            moveCameraWithinBounds(to: newCameraPosition)
+            logger.debug("Zoom target set: \(currentZoom) → \(targetZoom)")
         }
     }
     
+    // Legacy zoom method (kept for reference, not used anymore)
+    private func changeZoom(by amount: CGFloat, towardPoint: CGPoint? = nil) {
+        // This has been replaced by smoothZoom
+        smoothZoom(by: amount, towardPoint: towardPoint)
+    }
+    
     private func resetZoom() {
-        currentZoom = minZoom
-        cameraNode.setScale(1.0 / minZoom)
+        // Set target zoom to minimum (default) zoom
+        targetZoom = minZoom
+        hasTargetZoom = true
         
-        // Center camera
+        // Set target position to center of world
         let worldWidth = CGFloat(World.size) * tileSize
         let worldHeight = CGFloat(World.size) * tileSize
-        cameraNode.position = CGPoint(x: worldWidth / 2, y: worldHeight / 2)
+        cameraTargetPosition = CGPoint(x: worldWidth / 2, y: worldHeight / 2)
+        hasTargetPosition = true
         
-        logger.debug("Zoom reset to \(currentZoom)")
+        logger.debug("Zoom and position reset initiated")
     }
     
     // Note: This is now replaced by constrainPositionToBounds which doesn't modify the camera
@@ -368,14 +392,15 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         // Reset time step when regenerating world
         currentTimeStep = 0
         
-        // Reset camera zoom and position
-        currentZoom = minZoom
-        cameraNode.setScale(1.0 / minZoom)
+        // Reset camera zoom and position using smooth interpolation
+        targetZoom = minZoom
+        hasTargetZoom = true
         
         // Center camera on the world
         let worldWidth = CGFloat(World.size) * tileSize
         let worldHeight = CGFloat(World.size) * tileSize
-        cameraNode.position = CGPoint(x: worldWidth / 2, y: worldHeight / 2)
+        cameraTargetPosition = CGPoint(x: worldWidth / 2, y: worldHeight / 2)
+        hasTargetPosition = true
         
         logger.debug("Camera reset: position=\(cameraNode.position), zoom=\(currentZoom)")
     }
