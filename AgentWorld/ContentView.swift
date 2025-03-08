@@ -40,18 +40,34 @@ struct ContentView: View {
             .frame(width: 640, height: 640)
             .aspectRatio(1.0, contentMode: .fit)
             
-            // Bottom controls
-            HStack {
-                Button("Generate New World") {
-                    viewModel.regenerateWorld()
+            // Navigation instructions
+            HStack(spacing: 16) {
+                VStack(alignment: .leading) {
+                    Text("Map Controls:").bold()
+                    Text("• Drag to pan")
+                    Text("• Scroll wheel to zoom")
+                    Text("• +/- keys to zoom in/out")
+                    Text("• 0 key to reset zoom")
                 }
-                .padding()
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.horizontal)
                 
-                Button("Step Forward") {
-                    viewModel.advanceTimeStep()
+                Spacer()
+                
+                // Bottom controls
+                HStack {
+                    Button("Generate New World") {
+                        viewModel.regenerateWorld()
+                    }
+                    .padding()
+                    
+                    Button("Step Forward") {
+                        viewModel.advanceTimeStep()
+                    }
+                    .padding()
+                    .disabled(viewModel.isSimulationRunning)
                 }
-                .padding()
-                .disabled(viewModel.isSimulationRunning)
             }
         }
         .onAppear {
