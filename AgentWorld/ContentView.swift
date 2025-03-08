@@ -72,6 +72,9 @@ struct ContentView: View {
     @State private var isSimulationRunning = false
     @State private var simulationTimer: Task<Void, Never>? = nil
     @State private var timeStepInterval: TimeInterval = 60 // seconds between time steps
+    @State private var minTimeStepInterval: TimeInterval = 5 // minimum interval in seconds
+    @State private var maxTimeStepInterval: TimeInterval = 300 // maximum interval in seconds
+    @State private var timeStepAdjustment: TimeInterval = 5 // amount to change by each button press
     
     var body: some View {
         VStack {
@@ -88,7 +91,7 @@ struct ContentView: View {
                 Spacer()
                 
                 // Simulation control buttons
-                HStack {
+                HStack(spacing: 10) {
                     Button(action: {
                         toggleSimulation()
                     }) {
@@ -97,18 +100,34 @@ struct ContentView: View {
                     }
                     .buttonStyle(.bordered)
                     
-                    // Time step speed control
-                    Picker("Speed", selection: $timeStepInterval) {
-                        Text("Fast").tag(15.0)
-                        Text("Normal").tag(60.0)
-                        Text("Slow").tag(120.0)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 200)
-                    .onChange(of: timeStepInterval) { _, _ in
-                        if isSimulationRunning {
-                            restartSimulation()
+                    // Time step speed control with + and - buttons
+                    HStack(spacing: 8) {
+                        Button(action: {
+                            decreaseTimeStepInterval()
+                        }) {
+                            Image(systemName: "minus")
+                                .frame(width: 24, height: 24)
                         }
+                        .buttonStyle(.bordered)
+                        .disabled(timeStepInterval <= minTimeStepInterval)
+                        
+                        // Display current time step interval
+                        VStack(alignment: .center, spacing: 2) {
+                            Text("\(Int(timeStepInterval))s")
+                                .font(.headline)
+                            Text("per step")
+                                .font(.caption)
+                        }
+                        .frame(width: 80)
+                        
+                        Button(action: {
+                            increaseTimeStepInterval()
+                        }) {
+                            Image(systemName: "plus")
+                                .frame(width: 24, height: 24)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(timeStepInterval >= maxTimeStepInterval)
                     }
                 }
                 .padding(.horizontal)
@@ -203,6 +222,30 @@ struct ContentView: View {
     private func advanceTimeStep() {
         currentTimeStep += 1
         // Additional logic for time step advancement could go here
+    }
+    
+    // Decrease the time step interval (speed up simulation - minus button)
+    private func decreaseTimeStepInterval() {
+        let newValue = timeStepInterval - timeStepAdjustment
+        timeStepInterval = max(newValue, minTimeStepInterval)
+        
+        if isSimulationRunning {
+            restartSimulation()
+        }
+        
+        print("Time step interval decreased to \(timeStepInterval) seconds")
+    }
+    
+    // Increase the time step interval (slow down simulation - plus button)
+    private func increaseTimeStepInterval() {
+        let newValue = timeStepInterval + timeStepAdjustment
+        timeStepInterval = min(newValue, maxTimeStepInterval)
+        
+        if isSimulationRunning {
+            restartSimulation()
+        }
+        
+        print("Time step interval increased to \(timeStepInterval) seconds")
     }
 }
 
