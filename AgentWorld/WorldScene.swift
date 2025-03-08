@@ -168,7 +168,16 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         
         // Re-render to remove the agent
         DispatchQueue.main.async {
+            // Explicitly recreate the renderer to ensure it has the most up-to-date world state
+            self.worldRenderer = WorldRenderer(world: self.world, tileSize: self.tileSize)
             self.worldRenderer.renderWorld(in: self)
+            
+            // Log confirmation of agent removal
+            if self.world.agents[id] == nil {
+                self.logger.info("Agent \(id) successfully removed from world")
+            } else {
+                self.logger.error("Agent \(id) still present in world after disconnect!")
+            }
         }
     }
     

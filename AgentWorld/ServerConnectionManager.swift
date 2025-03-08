@@ -237,10 +237,19 @@ class ServerConnectionManager {
         
         // Remove agent from the world
         DispatchQueue.main.async {
-            self.world.agents.removeValue(forKey: agentId)
+            var updatedWorld = self.world
+            let removed = updatedWorld.removeAgent(id: agentId)
             
-            // Notify delegate about agent disconnection
-            self.delegate?.agentDidDisconnect(id: agentId)
+            if removed {
+                // Update the world reference with the updated one
+                self.world = updatedWorld
+                
+                // Notify delegate about agent disconnection
+                self.delegate?.agentDidDisconnect(id: agentId)
+                self.logger.info("Agent \(agentId) successfully removed from world")
+            } else {
+                self.logger.error("Failed to remove agent \(agentId) from world - agent not found")
+            }
         }
         
         logger.info("Removed connection for \(agentId)")

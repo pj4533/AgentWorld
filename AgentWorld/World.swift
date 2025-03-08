@@ -111,6 +111,14 @@ struct World {
         return nil // Failed to find a valid position
     }
     
+    mutating func removeAgent(id: String) -> Bool {
+        // Remove the agent from the agents dictionary
+        if agents.removeValue(forKey: id) != nil {
+            return true
+        }
+        return false
+    }
+    
     func isValidForAgent(x: Int, y: Int) -> Bool {
         // Check if position is in bounds
         guard x >= 0 && x < World.size && y >= 0 && y < World.size else {
