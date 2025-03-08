@@ -9,75 +9,58 @@ import Foundation
 import Network
 import OSLog
 
-// MARK: - Protocol Definitions
-protocol ConnectionProtocol {
-    var stateUpdateHandler: ((NWConnection.State) -> Void)? { get set }
-    func start(queue: DispatchQueue)
-    func cancel()
-    func receive(minimumIncompleteLength: Int, maximumLength: Int, completion: @escaping (Data?, NWConnection.ContentContext?, Bool, NWError?) -> Void)
-    func send(content: Data, completion: @escaping (NWError?) -> Void)
+// MARK: - Server Connection Manager Delegate Protocol
+protocol ServerConnectionManagerDelegate: AnyObject {
+    func worldDidUpdate(_ world: World)
+    func agentDidConnect(id: String, position: (x: Int, y: Int))
+    func agentDidDisconnect(id: String)
+    func serverDidEncounterError(_ error: Error)
 }
 
-protocol ListenerProtocol {
-    var port: NWEndpoint.Port? { get }
-    var newConnectionHandler: ((NWConnection) -> Void)? { get set }
-    var stateUpdateHandler: ((NWListener.State) -> Void)? { get set }
-    func start(queue: DispatchQueue)
-    func cancel()
-}
-
-// MARK: - Extensions to conform Network types to protocols
-extension NWConnection: ConnectionProtocol {
-    // We don't need to add any implementations since NWConnection already has all the methods
-    // But to satisfy the compiler, we need to explicitly add the implementation of the send method
-    public func send(content: Data, completion: @escaping (NWError?) -> Void) {
-        self.send(content: content, contentContext: .defaultMessage, isComplete: true, completion: .contentProcessed({ error in
-            completion(error)
-        }))
-    }
-}
-extension NWListener: ListenerProtocol {}
-
-// MARK: - Factory Protocol for creating network objects
-protocol NetworkFactory {
-    func createListener(using parameters: NWParameters, on port: NWEndpoint.Port) throws -> ListenerProtocol
-    func createHandler(for connection: NWConnection) -> ConnectionProtocol
-}
-
-// MARK: - Default Network Factory Implementation
-class DefaultNetworkFactory: NetworkFactory {
-    func createListener(using parameters: NWParameters, on port: NWEndpoint.Port) throws -> ListenerProtocol {
-        return try NWListener(using: parameters, on: port)
-    }
-    
-    func createHandler(for connection: NWConnection) -> ConnectionProtocol {
-        return connection
-    }
+// Optional default implementations
+extension ServerConnectionManagerDelegate {
+    func agentDidConnect(id: String, position: (x: Int, y: Int)) {}
+    func agentDidDisconnect(id: String) {}
+    func serverDidEncounterError(_ error: Error) {}
 }
 
 // MARK: - Server Connection Manager
-class ServerConnectionManager: ObservableObject {
+class ServerConnectionManager {
     private var listener: ListenerProtocol?
     private let defaultPort: UInt16 = 8000
     private let logger = AppLogger(category: "ServerConnectionManager")
     private let factory: NetworkFactory
+    private let messageHandler: AgentMessageHandler
     
     // Dictionary to store active connections
     private var connections: [String: ConnectionProtocol] = [:]
     
+    // Delegate to notify observers of world changes
+    weak var delegate: ServerConnectionManagerDelegate?
+    
     // Reference to the world for agent placement and movement
-    @Published var world: World
+    var world: World {
+        didSet {
+            // Keep the messageHandler's world reference in sync
+            messageHandler.updateWorld(world)
+            
+            // Notify delegate of world update
+            delegate?.worldDidUpdate(world)
+        }
+    }
     
     // Initialize with optional custom port, world reference, and factory
     init(port: UInt16? = nil, world: World, factory: NetworkFactory = DefaultNetworkFactory()) {
         self.world = world
         self.factory = factory
+        self.messageHandler = AgentMessageHandler(world: world)
         
         // We don't throw from the initializer, but handle errors internally with logging
         do {
             try setupListener(port: port ?? defaultPort)
         } catch {
             logger.error("Failed to initialize server: \(error.localizedDescription)")
+            delegate?.serverDidEncounterError(error)
         }
     }
     
@@ -134,6 +117,7 @@ class ServerConnectionManager: ObservableObject {
                         try self.setupListener(port: self.defaultPort)
                     } catch {
                         self.logger.error("Failed to restart listener: \(error.localizedDescription)")
+                        self.delegate?.serverDidEncounterError(error)
                     }
                 }
             case .cancelled:
@@ -170,9 +154,12 @@ class ServerConnectionManager: ObservableObject {
                     if let position = self.world.placeAgent(id: agentId) {
                         self.logger.info("Placed agent \(agentId) at position (\(position.x), \(position.y))")
                         
+                        // Notify delegate of new agent connection
+                        self.delegate?.agentDidConnect(id: agentId, position: position)
+                        
                         // Send initial observation to the agent
                         if let observation = self.world.createObservation(for: agentId, timeStep: 0) {
-                            self.sendObservation(observation, to: agentId)
+                            self.sendMessage(observation, to: agentId)
                         }
                     } else {
                         self.logger.error("Failed to place agent \(agentId) in the world")
@@ -206,7 +193,11 @@ class ServerConnectionManager: ObservableObject {
             
             if let data = data, !data.isEmpty {
                 // Process the received data
-                self.processReceivedData(data, from: agentId)
+                self.messageHandler.handleMessage(data, from: agentId) { response in
+                    if let response = response {
+                        self.sendMessage(response, to: agentId)
+                    }
+                }
                 
                 // Continue receiving messages
                 self.receiveMessage(from: agentId, connection: connection)
@@ -217,99 +208,26 @@ class ServerConnectionManager: ObservableObject {
         }
     }
     
-    private func processReceivedData(_ data: Data, from agentId: String) {
-        // Parse the received data as JSON
-        if let string = String(data: data, encoding: .utf8) {
-            logger.debug("Received from \(agentId): \(string)")
-            
-            do {
-                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    logger.info("Processed JSON from \(agentId): \(json)")
-                    
-                    // Handle agent action commands
-                    if let action = json["action"] as? String {
-                        switch action {
-                        case "move":
-                            if let targetTile = json["targetTile"] as? [String: Int],
-                               let x = targetTile["x"],
-                               let y = targetTile["y"] {
-                                handleMoveAction(agentId: agentId, targetX: x, targetY: y)
-                            } else {
-                                sendError(to: agentId, message: "Invalid target tile format")
-                            }
-                        default:
-                            sendError(to: agentId, message: "Unknown action: \(action)")
-                        }
-                    }
-                }
-            } catch {
-                logger.error("Error parsing JSON from \(agentId): \(error.localizedDescription)")
-                sendError(to: agentId, message: "Invalid JSON format")
-            }
-        }
-    }
-    
-    private func handleMoveAction(agentId: String, targetX: Int, targetY: Int) {
-        DispatchQueue.main.async {
-            let success = self.world.moveAgent(id: agentId, to: (x: targetX, y: targetY))
-            
-            if success {
-                self.logger.info("Agent \(agentId) moved to (\(targetX), \(targetY))")
-                
-                // Notify the agent of success with new observation
-                if let observation = self.world.createObservation(for: agentId, timeStep: 0) {
-                    self.sendObservation(observation, to: agentId)
-                }
-            } else {
-                self.logger.info("Agent \(agentId) failed to move to (\(targetX), \(targetY))")
-                self.sendError(to: agentId, message: "Invalid move - tile is not passable or is occupied")
-            }
-        }
-    }
-    
-    private func sendObservation(_ observation: Observation, to agentId: String) {
+    private func sendMessage<T: Encodable>(_ message: T, to agentId: String) {
         guard let connection = connections[agentId] else {
-            logger.error("Tried to send observation to nonexistent agent: \(agentId)")
+            logger.error("Tried to send message to nonexistent agent: \(agentId)")
             return
         }
         
         do {
-            let jsonData = try JSONEncoder().encode(observation)
+            let jsonData = try JSONEncoder().encode(message)
             
             connection.send(content: jsonData) { [weak self] error in
                 guard let self = self else { return }
                 
                 if let error = error {
-                    self.logger.error("Error sending observation to \(agentId): \(error.localizedDescription)")
+                    self.logger.error("Error sending message to \(agentId): \(error.localizedDescription)")
                 } else {
-                    self.logger.debug("Sent observation to \(agentId)")
+                    self.logger.debug("Sent message to \(agentId)")
                 }
             }
         } catch {
-            logger.error("Error encoding observation for \(agentId): \(error.localizedDescription)")
-        }
-    }
-    
-    private func sendError(to agentId: String, message: String) {
-        guard let connection = connections[agentId] else {
-            logger.error("Tried to send error to nonexistent agent: \(agentId)")
-            return
-        }
-        
-        let errorResponse = Observation.ErrorResponse(error: message)
-        
-        do {
-            let jsonData = try JSONEncoder().encode(errorResponse)
-            
-            connection.send(content: jsonData) { [weak self] error in
-                guard let self = self else { return }
-                
-                if let error = error {
-                    self.logger.error("Error sending error message to \(agentId): \(error.localizedDescription)")
-                }
-            }
-        } catch {
-            logger.error("Error encoding error message for \(agentId): \(error.localizedDescription)")
+            logger.error("Error encoding message for \(agentId): \(error.localizedDescription)")
         }
     }
     
@@ -320,16 +238,24 @@ class ServerConnectionManager: ObservableObject {
         // Remove agent from the world
         DispatchQueue.main.async {
             self.world.agents.removeValue(forKey: agentId)
+            
+            // Notify delegate about agent disconnection
+            self.delegate?.agentDidDisconnect(id: agentId)
         }
         
         logger.info("Removed connection for \(agentId)")
+    }
+    
+    // Updates the world with a new instance
+    func updateWorld(_ newWorld: World) {
+        self.world = newWorld
     }
     
     // Send observations to all connected agents
     func sendObservationsToAll(timeStep: Int) {
         for agentId in connections.keys {
             if let observation = world.createObservation(for: agentId, timeStep: timeStep) {
-                sendObservation(observation, to: agentId)
+                sendMessage(observation, to: agentId)
             }
         }
     }

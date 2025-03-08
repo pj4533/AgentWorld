@@ -37,6 +37,7 @@ struct Observation: Codable {
     let currentLocation: TilePosition
     let surroundings: Surroundings
     let timeStep: Int
+    private let responseType: String = "observation" // For protocol conformance
     
     struct TilePosition: Codable {
         let x: Int
@@ -63,6 +64,7 @@ struct Observation: Codable {
     
     struct ErrorResponse: Codable {
         let error: String
+        private let responseType: String = "error" // For protocol conformance
     }
 }
 
