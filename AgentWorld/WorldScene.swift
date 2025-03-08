@@ -18,6 +18,20 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
     
     private let logger = AppLogger(category: "WorldScene")
     
+    // Camera for zooming and panning
+    private var cameraNode: SKCameraNode!
+    
+    // For tracking camera position directly
+    private var targetCameraPosition: CGPoint = .zero
+    
+    // Only update camera in the update method for smooth movement
+    private var needsCameraUpdate = false
+    
+    // Zoom constraints
+    private let minZoom: CGFloat = 1.0  // Default zoom (whole map visible)
+    private let maxZoom: CGFloat = 5.0  // Maximum zoom level
+    private var currentZoom: CGFloat = 1.0
+    
     override func didMove(to view: SKView) {
         self.backgroundColor = .black
         
@@ -36,8 +50,32 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         serverConnectionManager = ServerConnectionManager(world: world)
         serverConnectionManager.delegate = self
         
+        // Setup camera for zooming and panning
+        setupCamera()
+        
         // Render the world
         worldRenderer.renderWorld(in: self)
+    }
+    
+    private func setupCamera() {
+        cameraNode = SKCameraNode()
+        
+        // Position camera at center of the world
+        let worldWidth = CGFloat(World.size) * tileSize
+        let worldHeight = CGFloat(World.size) * tileSize
+        cameraNode.position = CGPoint(x: worldWidth / 2, y: worldHeight / 2)
+        
+        // Make sure scale is properly initialized
+        cameraNode.setScale(1.0 / currentZoom)
+        
+        // Add the camera to the scene
+        self.addChild(cameraNode)
+        self.camera = cameraNode
+        
+        // Enable user interaction for panning and zooming
+        self.isUserInteractionEnabled = true
+        
+        logger.debug("Camera initialized: position=\(cameraNode.position), zoom=\(currentZoom)")
     }
     
     func setWorld(_ newWorld: World) {
@@ -50,8 +88,187 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
     
     // MARK: - Input Handling
     
+    // Track panning with absolute positions
+    private var panningStartPoint: CGPoint?
+    private var cameraStartPosition: CGPoint?
+    
     override func mouseDown(with event: NSEvent) {
-        inputHandler.handleMouseDown(with: event, in: self)
+        // Record starting points for panning
+        panningStartPoint = event.location(in: self)
+        cameraStartPosition = cameraNode.position
+        
+        // Only pass to input handler for actual clicks, not panning
+        if event.clickCount > 0 {
+            inputHandler.handleMouseDown(with: event, in: self)
+        }
+    }
+    
+    override func mouseDragged(with event: NSEvent) {
+        guard let startPoint = panningStartPoint,
+              let startCamera = cameraStartPosition else { return }
+        
+        // Get current location in the view's coordinate space
+        let currentPoint = event.location(in: self)
+        
+        // Calculate delta
+        let dx = currentPoint.x - startPoint.x
+        let dy = currentPoint.y - startPoint.y
+        
+        // Apply panning sensitivity
+        let panSensitivity: CGFloat = 3.0
+        
+        // Set new position directly
+        let newX = startCamera.x - (dx * panSensitivity) / currentZoom
+        let newY = startCamera.y - (dy * panSensitivity) / currentZoom
+        
+        // Update camera position directly (no interim step)
+        let constrainedPosition = constrainPositionToBounds(CGPoint(x: newX, y: newY))
+        cameraNode.position = constrainedPosition
+    }
+    
+    override func mouseUp(with event: NSEvent) {
+        panningStartPoint = nil
+        cameraStartPosition = nil
+    }
+    
+    // Constrain position without changing it (pure function)
+    private func constrainPositionToBounds(_ position: CGPoint) -> CGPoint {
+        // Calculate world dimensions
+        let worldWidth = CGFloat(World.size) * tileSize
+        let worldHeight = CGFloat(World.size) * tileSize
+        
+        // Calculate visible area based on current zoom
+        let visibleWidth = size.width / currentZoom
+        let visibleHeight = size.height / currentZoom
+        
+        // Calculate bounds
+        let minX = visibleWidth / 2
+        let maxX = worldWidth - visibleWidth / 2
+        let minY = visibleHeight / 2
+        let maxY = worldHeight - visibleHeight / 2
+        
+        // Constrain X position
+        var newX = position.x
+        if minX < maxX {
+            newX = max(minX, min(maxX, newX))
+        } else {
+            newX = worldWidth / 2
+        }
+        
+        // Constrain Y position
+        var newY = position.y
+        if minY < maxY {
+            newY = max(minY, min(maxY, newY))
+        } else {
+            newY = worldHeight / 2
+        }
+        
+        return CGPoint(x: newX, y: newY)
+    }
+    
+    // Public method that can be called directly from our custom view
+    func handleScrollWheel(with event: NSEvent) {
+        logger.debug("Direct scroll wheel handling with scrollingDeltaY: \(event.scrollingDeltaY)")
+        
+        // Handle smooth scrolling properly
+        let zoomAmount: CGFloat = 0.05
+        
+        // Only process if there's actual scroll delta
+        if abs(event.scrollingDeltaY) > 0.1 {
+            // Reversed direction - now scrolling up (negative scrollingDeltaY) means zoom out
+            let zoomDirection: CGFloat = event.scrollingDeltaY > 0 ? 1 : -1
+            
+            // Get mouse location in scene coordinates to zoom toward that point
+            let mouseLocation = event.location(in: self)
+            
+            changeZoom(by: zoomDirection * zoomAmount, towardPoint: mouseLocation)
+        }
+    }
+    
+    // We don't need to override scrollWheel since we're handling it in ZoomableSkView
+    // This prevents duplicate processing which was causing the strange zoom behavior
+    /*
+    override func scrollWheel(with event: NSEvent) {
+        // The standard event handler - log info but forward to our custom handler
+        logger.debug("Scene scrollWheel received: deltaY=\(event.deltaY)")
+        
+        // Use our dedicated handler
+        handleScrollWheel(with: event)
+    }
+    */
+    
+    // Add keyboard control for zooming as an alternative method
+    override func keyDown(with event: NSEvent) {
+        // Get the pressed key
+        if let key = event.charactersIgnoringModifiers?.lowercased() {
+            switch key {
+            case "=", "+": // Zoom in with plus key
+                // For keyboard zoom, use center of screen
+                let centerPoint = CGPoint(x: size.width / 2, y: size.height / 2)
+                changeZoom(by: 0.2, towardPoint: centerPoint)
+            case "-", "_": // Zoom out with minus key
+                let centerPoint = CGPoint(x: size.width / 2, y: size.height / 2)
+                changeZoom(by: -0.2, towardPoint: centerPoint)
+            case "0":      // Reset zoom
+                resetZoom()
+            default:
+                // Pass other keys to default handler
+                super.keyDown(with: event)
+            }
+        }
+    }
+    
+    private func changeZoom(by amount: CGFloat, towardPoint: CGPoint? = nil) {
+        var newZoom = currentZoom + amount
+        
+        // Constrain zoom within min/max limits
+        newZoom = max(minZoom, min(maxZoom, newZoom))
+        
+        if newZoom != currentZoom {
+            // If a specific point is provided, zoom toward that point
+            var newCameraPosition = cameraNode.position
+            
+            if let zoomPoint = towardPoint {
+                // Calculate vector from zoom point to camera
+                let vectorX = cameraNode.position.x - zoomPoint.x
+                let vectorY = cameraNode.position.y - zoomPoint.y
+                
+                // Scale factor based on how much we're zooming
+                let zoomFactor = 1.0 - (newZoom / currentZoom)
+                
+                // Move camera based on zoom point direction and zoom amount
+                newCameraPosition = CGPoint(
+                    x: cameraNode.position.x + (vectorX * zoomFactor),
+                    y: cameraNode.position.y + (vectorY * zoomFactor)
+                )
+            }
+            
+            logger.debug("Zoom changing: \(currentZoom) to \(newZoom)")
+            
+            // Apply zoom directly
+            cameraNode.setScale(1.0 / newZoom)
+            currentZoom = newZoom
+            
+            // After zooming, ensure camera remains within bounds
+            moveCameraWithinBounds(to: newCameraPosition)
+        }
+    }
+    
+    private func resetZoom() {
+        currentZoom = minZoom
+        cameraNode.setScale(1.0 / minZoom)
+        
+        // Center camera
+        let worldWidth = CGFloat(World.size) * tileSize
+        let worldHeight = CGFloat(World.size) * tileSize
+        cameraNode.position = CGPoint(x: worldWidth / 2, y: worldHeight / 2)
+        
+        logger.debug("Zoom reset to \(currentZoom)")
+    }
+    
+    // Note: This is now replaced by constrainPositionToBounds which doesn't modify the camera
+    private func moveCameraWithinBounds(to position: CGPoint) {
+        cameraNode.position = constrainPositionToBounds(position)
     }
     
     func inputHandler(_ handler: InputHandler, didClickAtPosition position: CGPoint) {
@@ -126,6 +343,17 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         
         // Reset time step when regenerating world
         currentTimeStep = 0
+        
+        // Reset camera zoom and position
+        currentZoom = minZoom
+        cameraNode.setScale(1.0 / minZoom)
+        
+        // Center camera on the world
+        let worldWidth = CGFloat(World.size) * tileSize
+        let worldHeight = CGFloat(World.size) * tileSize
+        cameraNode.position = CGPoint(x: worldWidth / 2, y: worldHeight / 2)
+        
+        logger.debug("Camera reset: position=\(cameraNode.position), zoom=\(currentZoom)")
     }
     
     // MARK: - ServerConnectionManagerDelegate

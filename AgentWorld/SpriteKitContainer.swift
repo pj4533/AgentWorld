@@ -9,6 +9,24 @@ import SwiftUI
 import SpriteKit
 import OSLog
 
+// Custom SKView subclass to properly handle scroll wheel events
+class ZoomableSkView: SKView {
+    private let logger = AppLogger(category: "ZoomableSkView")
+    
+    override func scrollWheel(with event: NSEvent) {
+        logger.debug("View received scroll: \(event.scrollingDeltaY)")
+        
+        // Pass event to the scene
+        if let worldScene = self.scene as? WorldScene {
+            // Call directly to ensure processing
+            worldScene.handleScrollWheel(with: event)
+        }
+        
+        // Don't call super to avoid duplicate event processing
+        // super.scrollWheel(with: event)
+    }
+}
+
 struct SpriteKitContainer: NSViewRepresentable {
     @Binding var shouldRegenerateWorld: Bool
     @Binding var currentTimeStep: Int
@@ -23,15 +41,26 @@ struct SpriteKitContainer: NSViewRepresentable {
         self.viewModel = viewModel
     }
     
-    func makeNSView(context: Context) -> SKView {
-        let view = SKView()
+    func makeNSView(context: Context) -> ZoomableSkView {
+        // Use our custom SKView subclass
+        let view = ZoomableSkView()
         view.showsFPS = true
         view.showsNodeCount = true
+        
+        // Enable all necessary settings for input handling
+        view.allowsTransparency = true
+        view.ignoresSiblingOrder = true
+        view.wantsLayer = true
         
         // Create and present the scene with square dimensions
         let scene = WorldScene(size: CGSize(width: 640, height: 640))
         scene.scaleMode = .aspectFill
         scene.setWorld(viewModel.world)
+        
+        // Make sure user interaction is enabled at scene level
+        scene.isUserInteractionEnabled = true
+        
+        // Present the scene
         view.presentScene(scene)
         
         // Store the scene in the coordinator
@@ -40,7 +69,7 @@ struct SpriteKitContainer: NSViewRepresentable {
         return view
     }
     
-    func updateNSView(_ nsView: SKView, context: Context) {
+    func updateNSView(_ nsView: ZoomableSkView, context: Context) {
         guard let scene = context.coordinator.scene else { return }
         
         // Check if we should regenerate the world
