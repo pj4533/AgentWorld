@@ -6,6 +6,7 @@
 //
 
 import SpriteKit
+import OSLog
 
 protocol InputHandlerDelegate: AnyObject {
     func inputHandler(_ handler: InputHandler, didClickAtPosition position: CGPoint)
@@ -13,6 +14,7 @@ protocol InputHandlerDelegate: AnyObject {
 
 class InputHandler {
     weak var delegate: InputHandlerDelegate?
+    private let logger = AppLogger(category: "InputHandler")
     
     init(delegate: InputHandlerDelegate? = nil) {
         self.delegate = delegate
@@ -20,7 +22,7 @@ class InputHandler {
     
     func handleMouseDown(with event: NSEvent, in scene: SKScene) {
         let location = event.location(in: scene)
-        print("Click at \(location)")
+        logger.debug("Click at \(location)")
         
         delegate?.inputHandler(self, didClickAtPosition: location)
     }

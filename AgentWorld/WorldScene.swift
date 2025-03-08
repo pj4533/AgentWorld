@@ -6,6 +6,7 @@
 //
 
 import SpriteKit
+import OSLog
 
 class WorldScene: SKScene, InputHandlerDelegate {
     private var world: World!
@@ -13,6 +14,8 @@ class WorldScene: SKScene, InputHandlerDelegate {
     private var worldRenderer: WorldRenderer!
     private var inputHandler: InputHandler!
     private var currentTimeStep: Int = 0
+    
+    private let logger = AppLogger(category: "WorldScene")
     
     override func didMove(to view: SKView) {
         self.backgroundColor = .black
@@ -79,7 +82,7 @@ class WorldScene: SKScene, InputHandlerDelegate {
         // - Apply environmental effects
         
         // For now, we'll just have a placeholder
-        print("Simulating time step: \(currentTimeStep + 1)")
+        logger.info("Simulating time step: \(currentTimeStep + 1)")
     }
     
     // MARK: - Public Methods

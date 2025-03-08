@@ -7,10 +7,12 @@
 
 import SwiftUI
 import SpriteKit
+import OSLog
 
 struct SpriteKitContainer: NSViewRepresentable {
     @Binding var shouldRegenerateWorld: Bool
     @Binding var currentTimeStep: Int
+    private let logger = AppLogger(category: "SpriteKitContainer")
     
     init(shouldRegenerateWorld: Binding<Bool> = .constant(false),
          currentTimeStep: Binding<Int> = .constant(0)) {
@@ -52,7 +54,7 @@ struct SpriteKitContainer: NSViewRepresentable {
         // Ensure the world scene has the latest time step
         // This is critical for play button functionality
         if scene.getCurrentTimeStep() != currentTimeStep {
-            print("Updating scene to time step: \(currentTimeStep)")
+            logger.debug("Updating scene to time step: \(currentTimeStep)")
             scene.updateToTimeStep(currentTimeStep)
         }
     }
@@ -75,6 +77,8 @@ struct ContentView: View {
     @State private var minTimeStepInterval: TimeInterval = 5 // minimum interval in seconds
     @State private var maxTimeStepInterval: TimeInterval = 300 // maximum interval in seconds
     @State private var timeStepAdjustment: TimeInterval = 5 // amount to change by each button press
+    
+    private let logger = AppLogger(category: "ContentView")
     
     var body: some View {
         VStack {
@@ -197,11 +201,11 @@ struct ContentView: View {
                         advanceTimeStep()
                         
                         // Debug print to see if this is being called
-                        print("Auto-advancing to time step: \(currentTimeStep)")
+                        logger.debug("Auto-advancing to time step: \(currentTimeStep)")
                     }
                 }
             } catch {
-                print("Simulation task was cancelled: \(error)")
+                logger.error("Simulation task was cancelled: \(error.localizedDescription)")
             }
         }
     }
@@ -233,7 +237,7 @@ struct ContentView: View {
             restartSimulation()
         }
         
-        print("Time step interval decreased to \(timeStepInterval) seconds")
+        logger.info("Time step interval decreased to \(timeStepInterval) seconds")
     }
     
     // Increase the time step interval (slow down simulation - plus button)
@@ -245,7 +249,7 @@ struct ContentView: View {
             restartSimulation()
         }
         
-        print("Time step interval increased to \(timeStepInterval) seconds")
+        logger.info("Time step interval increased to \(timeStepInterval) seconds")
     }
 }
 
