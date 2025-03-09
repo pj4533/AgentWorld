@@ -109,26 +109,45 @@ class WorldScene: SKScene, InputHandlerDelegate, WorldSceneDelegate {
     private var targetZoom: CGFloat = 1.0
     private var hasTargetZoom = false
     
+    // Timestamp to track when camera was last updated
+    private var lastCameraUpdateTime: TimeInterval = 0
+    private let cameraUpdateInterval: TimeInterval = 1.0 / 60.0 // 60 fps target
+    
     override func update(_ currentTime: TimeInterval) {
-        // Game loop updates would go here
+        // Only update camera at a fixed rate to reduce CPU usage
+        let timeSinceLastUpdate = currentTime - lastCameraUpdateTime
+        if timeSinceLastUpdate >= cameraUpdateInterval {
+            updateCamera()
+            lastCameraUpdateTime = currentTime
+        }
         
-        // Handle camera position updates in the main update loop for smoother movement
+        // Update timing for next frame
+        lastUpdateTime = currentTime
+    }
+    
+    // Separate method for camera updates to improve organization and profiling
+    private func updateCamera() {
+        // Early return if no camera updates are needed
+        if !hasTargetPosition && !hasTargetZoom {
+            return
+        }
+        
+        // Handle camera position updates
         if hasTargetPosition && cameraNode.position != cameraTargetPosition {
             // Calculate a smooth interpolation to the target position
             let positionSmoothFactor: CGFloat = 0.5 // Higher = faster movement
             let dx = cameraTargetPosition.x - cameraNode.position.x
             let dy = cameraTargetPosition.y - cameraNode.position.y
             
-            // Move camera towards target using interpolation
-            // This smooths out the movement significantly
-            cameraNode.position = CGPoint(
-                x: cameraNode.position.x + dx * positionSmoothFactor,
-                y: cameraNode.position.y + dy * positionSmoothFactor
-            )
-            
-            // If we're very close to the target, snap to exact position
-            // This ensures we don't miss the target due to diminishing changes
-            if abs(dx) < 1.0 && abs(dy) < 1.0 {
+            // Only update if the change is significant enough to be visible
+            if abs(dx) > 0.1 || abs(dy) > 0.1 {
+                // Move camera towards target using interpolation
+                cameraNode.position = CGPoint(
+                    x: cameraNode.position.x + dx * positionSmoothFactor,
+                    y: cameraNode.position.y + dy * positionSmoothFactor
+                )
+            } else {
+                // Snap to position if we're very close
                 cameraNode.position = cameraTargetPosition
                 // Once we've reached the target, stop tracking it
                 if !isTrackingAgent {
@@ -137,10 +156,10 @@ class WorldScene: SKScene, InputHandlerDelegate, WorldSceneDelegate {
             }
         }
         
-        // Handle zoom interpolation in the update loop
+        // Handle zoom interpolation
         if hasTargetZoom && abs(currentZoom - targetZoom) > 0.001 {
             // Calculate a smooth interpolation to the target zoom
-            let zoomSmoothFactor: CGFloat = 0.6 // Increased from 0.3 for faster zooming
+            let zoomSmoothFactor: CGFloat = 0.6
             let dZoom = targetZoom - currentZoom
             
             // Update the current zoom with smoothing
@@ -155,11 +174,14 @@ class WorldScene: SKScene, InputHandlerDelegate, WorldSceneDelegate {
                 currentZoom = targetZoom
                 cameraNode.setScale(1.0 / currentZoom)
                 hasTargetZoom = false
+                
+                // Force re-render after zoom changes to update node detail levels
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    self.worldRenderer.renderWorld(in: self)
+                }
             }
         }
-        
-        // Update timing for next frame
-        lastUpdateTime = currentTime
     }
     
     override func mouseDown(with event: NSEvent) {

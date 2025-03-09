@@ -37,8 +37,28 @@ class TileRenderer {
         return node
     }
     
-    func createAgentNode(withColor color: NSColor, size: CGSize) -> SKSpriteNode {
+    func createAgentNode(withColor color: NSColor, size: CGSize, simplified: Bool = false) -> SKSpriteNode {
         let node = SKSpriteNode(color: .clear, size: size)
+        
+        if simplified {
+            // Super simplified version for when zoomed out or for better performance
+            let simpleAgentShape = SKShapeNode(circleOfRadius: tileSize * 0.40)
+            simpleAgentShape.fillColor = color
+            simpleAgentShape.strokeColor = NSColor.white
+            simpleAgentShape.lineWidth = tileSize * 0.08
+            simpleAgentShape.zPosition = 1
+            node.addChild(simpleAgentShape)
+            
+            // Simple label
+            let label = SKLabelNode(text: "AGENT")
+            label.fontSize = tileSize * 0.25
+            label.fontColor = .white
+            label.position = CGPoint(x: 0, y: -tileSize * 0.6)
+            label.zPosition = 2
+            node.addChild(label)
+            
+            return node
+        }
         
         // Create a bright highlight under the agent for better visibility
         let highlight = SKShapeNode(circleOfRadius: tileSize * 0.45)
@@ -47,6 +67,7 @@ class TileRenderer {
         highlight.lineWidth = tileSize * 0.08
         highlight.alpha = 0.5
         highlight.zPosition = 0
+        highlight.name = "highlight"
         node.addChild(highlight)
         
         // Create a circle shape for the agent (slightly larger)
@@ -100,7 +121,8 @@ class TileRenderer {
         agentShape.addChild(smile)
         node.addChild(agentShape)
         
-        // Add a pulsing animation to make the agent more noticeable
+        // Only add the pulsing animation to the highlight, not the whole node
+        // This is more efficient than scaling the entire node
         let pulseAction = SKAction.sequence([
             SKAction.scale(to: 1.2, duration: 0.5),
             SKAction.scale(to: 1.0, duration: 0.5)
@@ -118,6 +140,11 @@ class TileRenderer {
         node.addChild(label)
         
         return node
+    }
+    
+    // New method to create a simpler agent node for better performance when zoomed out
+    func createSimplifiedAgentNode(withColor color: NSColor, size: CGSize) -> SKSpriteNode {
+        return createAgentNode(withColor: color, size: size, simplified: true)
     }
     
     private func addGrassTexture(to node: SKSpriteNode) {

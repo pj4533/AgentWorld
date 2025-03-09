@@ -22,11 +22,33 @@ class WorldRenderer {
     // Cache for agent nodes
     private var agentNodeCache: [String: SKSpriteNode] = [:]
     
+    // Track the current zoom state to know when to switch to simplified agents
+    private var currentZoomLevel: CGFloat = 1.0
+    private var useSimplifiedAgents: Bool = false
+    
     init(world: World, tileSize: CGFloat) {
         self.world = world
         self.tileSize = tileSize
         self.tileRenderer = TileRenderer(tileSize: tileSize)
         clearTileCache()
+    }
+    
+    // Method to update zoom level and decide whether to use simplified agents
+    public func updateZoom(_ zoomLevel: CGFloat) {
+        // Only rebuild agent nodes if we cross the threshold between detailed and simplified
+        let shouldUseSimplifiedAgents = zoomLevel > 0.7 // If scale > 0.7, we're zoomed out
+        
+        if shouldUseSimplifiedAgents != useSimplifiedAgents {
+            // We've crossed the threshold, clear agent cache to rebuild with new style
+            for (_, node) in agentNodeCache {
+                node.removeAllActions()
+                node.removeFromParent()
+            }
+            agentNodeCache.removeAll()
+            useSimplifiedAgents = shouldUseSimplifiedAgents
+        }
+        
+        currentZoomLevel = zoomLevel
     }
     
     /// Clears the tile node cache
@@ -87,19 +109,15 @@ class WorldRenderer {
             scene.addChild(agentContainer!)
         }
         
-        // First, search for any stray agent nodes that might exist elsewhere in the scene
-        // (sometimes SpriteKit nodes can end up in unexpected places)
-        scene.enumerateChildNodes(withName: "agent-*") { node, _ in
-            if node.parent != self.agentContainer {
-                node.removeFromParent()
-            }
+        // Check if camera zoom has changed and update our zoom tracking
+        if let cameraScale = scene.camera?.xScale {
+            // Convert camera scale to zoom level
+            let currentZoom = 1.0 / cameraScale
+            updateZoom(cameraScale)
         }
         
-        // Clear all agent nodes from the scene
-        agentContainer?.removeAllChildren()
-        
-        // Only render tiles if we haven't rendered them before
-        if !tilesRendered {
+        // Only render tiles if we haven't rendered them before or camera zoom changed significantly
+        if !tilesRendered || scene.camera?.xScale != currentZoomLevel {
             renderTiles(in: scene)
             tilesRendered = true
         }
@@ -111,9 +129,43 @@ class WorldRenderer {
     private func renderTiles(in scene: SKScene) {
         guard let tileContainer = tileContainer else { return }
         
-        // Create and place tile sprites
-        for y in 0..<World.size {
-            for x in 0..<World.size {
+        let logger = AppLogger(category: "WorldRenderer")
+        
+        // Remove all existing tile nodes first to ensure clean state
+        tileContainer.removeAllChildren()
+        
+        // Calculate visible range based on camera position and zoom
+        let visibleRows: [Int]
+        let visibleCols: [Int]
+        
+        if let camera = scene.camera {
+            // Calculate world coordinates of visible area with buffer
+            let visibleRect = CGRect(
+                x: camera.position.x - scene.size.width/(2*camera.xScale),
+                y: camera.position.y - scene.size.height/(2*camera.yScale),
+                width: scene.size.width/camera.xScale,
+                height: scene.size.height/camera.yScale
+            ).insetBy(dx: -tileSize*3, dy: -tileSize*3) // Larger buffer for tiles
+            
+            // Convert to grid coordinates
+            let minX = max(0, Int(floor(visibleRect.minX / tileSize)))
+            let maxX = min(World.size-1, Int(ceil(visibleRect.maxX / tileSize)))
+            let minY = max(0, Int(floor((scene.size.height - visibleRect.maxY) / tileSize)))
+            let maxY = min(World.size-1, Int(ceil((scene.size.height - visibleRect.minY) / tileSize)))
+            
+            visibleRows = Array(minY...maxY)
+            visibleCols = Array(minX...maxX)
+            
+            logger.debug("Rendering tiles in visible range: rows \(minY)-\(maxY), cols \(minX)-\(maxX)")
+        } else {
+            // If no camera, render everything
+            visibleRows = Array(0..<World.size)
+            visibleCols = Array(0..<World.size)
+        }
+        
+        // Create and place tile sprites only for visible tiles
+        for y in visibleRows {
+            for x in visibleCols {
                 let tileType = world.tiles[y][x]
                 
                 // Get cached node or create a new one if it doesn't exist
@@ -148,67 +200,106 @@ class WorldRenderer {
         // First, log debug info about all agents being rendered
         logger.debug("Rendering \(world.agents.count) agents in the world")
         
-        // Remove all agent nodes from the scene
-        scene.enumerateChildNodes(withName: "//agent-*") { node, _ in
-            node.removeFromParent()
-        }
-        agentContainer.removeAllChildren()
+        // Keep existing agents, only remove/add ones that changed
+        let currentAgentIds = Set(world.agents.keys)
+        let cachedAgentIds = Set(agentNodeCache.keys)
         
-        // Clear the cache completely to prevent any stale references
-        for (_, node) in agentNodeCache {
-            node.removeAllActions()
-            node.removeFromParent()
+        // Remove agents that no longer exist
+        for agentId in cachedAgentIds.subtracting(currentAgentIds) {
+            if let node = agentNodeCache[agentId] {
+                node.removeFromParent()
+                node.removeAllActions()
+                agentNodeCache.removeValue(forKey: agentId)
+                logger.debug("Removed agent node for \(agentId)")
+            }
         }
-        agentNodeCache.removeAll()
         
-        // Render all agents in the world with brand new nodes
-        for (agentID, agentInfo) in world.agents {
-            logger.debug("Rendering agent \(agentID) at position (\(agentInfo.position.x), \(agentInfo.position.y))")
-            
-            // Always create a new agent node to avoid any caching issues
-            let agentNode = tileRenderer.createAgentNode(
-                withColor: agentInfo.color,
-                size: CGSize(width: tileSize, height: tileSize)
-            )
-            
-            // Store in cache
-            agentNodeCache[agentID] = agentNode
-            
-            // Position the agent at its current position
+        // Update or create agents
+        for (agentId, agentInfo) in world.agents {
             let pos = agentInfo.position
             let newPosition = CGPoint(
                 x: CGFloat(pos.x) * tileSize + tileSize/2,
                 y: scene.size.height - (CGFloat(pos.y) * tileSize + tileSize/2) // Flip Y-axis
             )
             
-            // Set position directly
+            // Skip rendering if not visible (with buffer)
+            if !isPositionVisible(newPosition, in: scene) {
+                // If we have a cached node for an off-screen agent, remove it temporarily
+                if let existingNode = agentNodeCache[agentId], existingNode.parent != nil {
+                    existingNode.removeFromParent()
+                    logger.debug("Agent \(agentId) is off-screen, temporarily removing node")
+                }
+                continue
+            }
+            
+            let agentNode: SKSpriteNode
+            
+            if let existingNode = agentNodeCache[agentId], existingNode.parent == nil {
+                // Reuse existing cached node that's not on screen
+                agentNode = existingNode
+                agentContainer.addChild(agentNode)
+                logger.debug("Reusing cached node for agent \(agentId)")
+            } else if let existingNode = agentNodeCache[agentId] {
+                // Already on screen, just update existing node
+                agentNode = existingNode
+                logger.debug("Updating existing node for agent \(agentId)")
+            } else {
+                // Create new node only if needed (simplified based on zoom level)
+                agentNode = tileRenderer.createAgentNode(
+                    withColor: agentInfo.color,
+                    size: CGSize(width: tileSize, height: tileSize),
+                    simplified: useSimplifiedAgents
+                )
+                agentNodeCache[agentId] = agentNode
+                agentContainer.addChild(agentNode)
+                
+                // Only add highlight animation for new nodes
+                let highlightAction = SKAction.sequence([
+                    SKAction.scale(to: 1.3, duration: 0.2),
+                    SKAction.scale(to: 1.0, duration: 0.2)
+                ])
+                agentNode.run(highlightAction)
+                
+                logger.debug("Created new node for agent \(agentId)")
+            }
+            
+            // Update position and name
             agentNode.position = newPosition
-            
-            // Set zPosition to ensure agents are above tiles
-            agentNode.zPosition = 10
-            
-            // Add name for identification including position to make it unique
-            agentNode.name = "agent-\(agentID)-\(pos.x)-\(pos.y)"
+            agentNode.name = "agent-\(agentId)-\(pos.x)-\(pos.y)"
             
             // Update the label with the correct agent ID
             if let label = agentNode.childNode(withName: "//SKLabelNode") as? SKLabelNode {
-                label.text = String(agentID.prefix(8))
+                label.text = String(agentId.prefix(8))
             }
-            
-            // Add to the agent container
-            agentContainer.addChild(agentNode)
-            
-            // Add a brief highlight animation when added
-            let highlightAction = SKAction.sequence([
-                SKAction.scale(to: 1.3, duration: 0.2),
-                SKAction.scale(to: 1.0, duration: 0.2)
-            ])
-            agentNode.run(highlightAction)
         }
         
-        // Verify agent count after rendering
-        if agentContainer.children.count != world.agents.count {
-            logger.error("Agent count mismatch - World has \(world.agents.count) agents but rendered \(agentContainer.children.count) sprites")
+        // Verify agent count is correct
+        let visibleAgentCount = agentContainer.children.count
+        let expectedVisibleCount = world.agents.filter { 
+            isPositionVisible(CGPoint(
+                x: CGFloat($0.value.position.x) * tileSize + tileSize/2,
+                y: scene.size.height - (CGFloat($0.value.position.y) * tileSize + tileSize/2)
+            ), in: scene) 
+        }.count
+        
+        if visibleAgentCount != expectedVisibleCount {
+            logger.error("Agent count mismatch - Expected \(expectedVisibleCount) visible agents but rendered \(visibleAgentCount) sprites")
         }
+    }
+    
+    // Helper method to determine if a position is visible on screen (with buffer)
+    private func isPositionVisible(_ position: CGPoint, in scene: SKScene) -> Bool {
+        guard let camera = scene.camera else { return true }
+        
+        let visibleRect = CGRect(
+            x: camera.position.x - scene.size.width/(2*camera.xScale),
+            y: camera.position.y - scene.size.height/(2*camera.yScale),
+            width: scene.size.width/camera.xScale,
+            height: scene.size.height/camera.yScale
+        )
+        
+        // Add a buffer zone (2 tiles in each direction)
+        let bufferRect = visibleRect.insetBy(dx: -tileSize*2, dy: -tileSize*2)
+        return bufferRect.contains(position)
     }
 }
