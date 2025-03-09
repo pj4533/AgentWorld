@@ -41,12 +41,26 @@ struct AgentCommand: AsyncParsableCommand {
     @Flag(name: .long, help: "Enable console logging for debugging 🐞")
     var debugLogging: Bool = false
     
+    @Flag(name: .long, help: "Enable detailed OpenAI API logging 🧠")
+    var llmLogging: Bool = false
+    
     // MARK: - Command execution
     func run() async throws {
         // Set environment variable for console logging if flag is enabled
         if debugLogging {
             setenv("AGENT_LOG_CONSOLE", "1", 1)
             print("Debug logging enabled to console 🐞")
+        }
+        
+        // Set environment variable for LLM logging
+        if llmLogging {
+            setenv("AGENT_LLM_LOGGING", "1", 1)
+            print("Detailed LLM logging enabled 🧠")
+            
+            // When LLM logging is enabled, also enable console logging
+            if !debugLogging {
+                setenv("AGENT_LOG_CONSOLE", "1", 1)
+            }
         }
         
         logger.info("🚀 Agent starting up!")
