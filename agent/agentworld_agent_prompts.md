@@ -74,15 +74,23 @@ Provide the updated code for main loop, focusing on reading server messages, sto
 ### **Prompt 5: Integrate LLM (Prompting GPT-4)**
 
 ```text
-Now let's integrate an LLM-based decision:
+Now let's integrate an LLM-based decision into the CLI agent:
 
-1. Create a function `makeDecision(currentLocation: (Int, Int), surroundings: JSON, traits: [String], shortTermMemories: [String]) -> String`.
-2. In that function, build a text prompt that includes location, surroundings, traits, last 5 memories, and a request for an action in JSON form. 
-3. Stub the GPT-4 call (just pretend we call an API). 
-4. Parse the response as JSON. 
-5. Return it to the main loop.
+1. Write code that communicates with the OpenAI API using the chat completions endpoint. Read the openAI api key from the environment. Process an .env file when launching the CLI. Try to avoid external dependencies.
+2. Use the model `gpt-4o`
+3. Separatly create a function called decideNextAction(), which will use the initial prompt: "You are an explorer in a new world. Try to see as much of the world as you can, without revisiting areas you have already visited. 
 
-Provide the new or modified code. 
+Decide where to move next. 
+
+Output your next move using JSON formatted like this:
+{"action": "move", "targetTile": {x,y}}
+
+Current Observation:
+<include most recent observation from server>
+"
+4. Send this prompt to OpenAI gpt-4o. Make sure to use "json_object" as the response_format, so that we get good JSON output.
+5. Parse the output using Codable and send it to the server.
+6. Make sure to use OSLog to log progress, debugging and errors.
 ```
 
 ### **Prompt 6: Reflection Mechanism**

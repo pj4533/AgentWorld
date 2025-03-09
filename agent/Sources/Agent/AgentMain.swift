@@ -20,11 +20,44 @@ struct AgentCommand: AsyncParsableCommand {
     @Option(name: .long, help: "The port to connect to 🔌")
     var port: UInt16 = 8000
     
+    @Option(name: .long, help: "Path to .env file 📄")
+    var envFile: String = ".env"
+    
+    @Flag(name: .long, help: "Use random movement instead of LLM 🎲")
+    var randomMovement: Bool = false
+    
     // MARK: - Command execution
     func run() async throws {
         logger.info("🚀 Agent starting up!")
-        logger.info("🔌 Connecting to \(self.host):\(self.port)")
         
+        // Load environment variables from .env file
+        EnvironmentService.loadEnvironment(from: envFile)
+        
+        // Initialize OpenAI service if we're using LLM-based decisions
+        let openAIService: OpenAIService?
+        
+        if !randomMovement {
+            // Get OpenAI API key from environment
+            guard let apiKey = EnvironmentService.getEnvironmentVariable("OPENAI_API_KEY") else {
+                logger.error("❌ OPENAI_API_KEY not found in environment or .env file")
+                print("Error: OPENAI_API_KEY environment variable is required")
+                print("Please add it to your .env file or set it in your environment")
+                throw NSError(domain: "AgentCommand", code: 1, userInfo: [
+                    NSLocalizedDescriptionKey: "OPENAI_API_KEY not found"
+                ])
+            }
+            
+            // Initialize OpenAI service
+            openAIService = OpenAIService(apiKey: apiKey)
+            logger.info("🧠 LLM-based decision making enabled")
+            print("LLM-based decision making enabled 🧠")
+        } else {
+            openAIService = nil
+            logger.info("🎲 Random movement enabled")
+            print("Random movement enabled 🎲")
+        }
+        
+        logger.info("🔌 Connecting to \(self.host):\(self.port)")
         print("Connecting to \(host):\(port)...")
         
         // Create network service and establish connection
@@ -36,7 +69,7 @@ struct AgentCommand: AsyncParsableCommand {
             print("Connected to server! 🎉")
             
             // Keep receiving data in a loop
-            try await receiveDataLoop(using: networkService)
+            try await receiveDataLoop(using: networkService, openAIService: openAIService)
         } catch {
             logger.error("❌ Connection error: \(error.localizedDescription)")
             print("Failed to connect: \(error.localizedDescription)")
@@ -44,7 +77,7 @@ struct AgentCommand: AsyncParsableCommand {
         }
     }
     
-    private func receiveDataLoop(using networkService: NetworkService) async throws {
+    private func receiveDataLoop(using networkService: NetworkService, openAIService: OpenAIService?) async throws {
         print("Listening for server messages... 👂")
         
         // Start an infinite loop to receive data
@@ -66,10 +99,25 @@ struct AgentCommand: AsyncParsableCommand {
                     
                     // Only send an action if this is an observation message
                     if response.responseType == "observation" {
-                        // Implement simple agent decision logic
-                        let action = createAction(basedOn: response)
+                        // Decide on the next action
+                        let action: AgentAction
+                        
+                        if randomMovement || openAIService == nil {
+                            // Use simple random movement logic
+                            action = createRandomAction(basedOn: response)
+                        } else {
+                            // Use LLM for decision making
+                            do {
+                                action = try await decideNextAction(basedOn: response, using: openAIService)
+                            } catch {
+                                logger.error("❌ LLM decision error: \(error.localizedDescription), falling back to random")
+                                action = createRandomAction(basedOn: response)
+                            }
+                        }
+                        
+                        // Send the action to the server
                         try await networkService.sendAction(action)
-                        print("🚀 Sent action: \(action.action.rawValue)")
+                        print("🚀 Sent action: \(action.action.rawValue) to \(action.targetTile?.x ?? 0), \(action.targetTile?.y ?? 0)")
                     } else {
                         print("📝 Received \(response.responseType) message, not sending an action")
                     }
@@ -100,7 +148,46 @@ struct AgentCommand: AsyncParsableCommand {
     
     // MARK: - Agent Decision Logic
     
-    private func createAction(basedOn response: ServerResponse) -> AgentAction {
+    // LLM-based decision making
+    private func decideNextAction(basedOn response: ServerResponse, using openAIService: OpenAIService?) async throws -> AgentAction {
+        logger.info("🤖 Using LLM to decide next action at time step \(response.timeStep)")
+        
+        guard let openAIService = openAIService else {
+            throw NSError(domain: "AgentCommand", code: 2, userInfo: [
+                NSLocalizedDescriptionKey: "OpenAI service not initialized"
+            ])
+        }
+        
+        print("Asking AI for next move... 🧠")
+        let action = try await openAIService.decideNextAction(observation: response)
+        
+        // Verify that the target tile is valid (adjacent and not water)
+        if let targetTile = action.targetTile {
+            let currentX = response.currentLocation.x
+            let currentY = response.currentLocation.y
+            let dx = abs(targetTile.x - currentX)
+            let dy = abs(targetTile.y - currentY)
+            
+            // If not adjacent or if water, fall back to random
+            let isAdjacent = (dx == 1 && dy == 0) || (dx == 0 && dy == 1) || (dx == 0 && dy == 0)
+            
+            // Find if the target is water
+            let targetTileInfo = response.surroundings.tiles.first { 
+                $0.x == targetTile.x && $0.y == targetTile.y 
+            }
+            let isWater = targetTileInfo?.type == .water
+            
+            if !isAdjacent || isWater {
+                logger.warning("⚠️ LLM suggested invalid move to (\(targetTile.x), \(targetTile.y)), using fallback")
+                return createRandomAction(basedOn: response)
+            }
+        }
+        
+        return action
+    }
+    
+    // Random action for fallback
+    private func createRandomAction(basedOn response: ServerResponse) -> AgentAction {
         // Get current position
         let currentX = response.currentLocation.x
         let currentY = response.currentLocation.y
