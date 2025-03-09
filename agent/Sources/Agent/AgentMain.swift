@@ -163,43 +163,54 @@ struct AgentCommand: AsyncParsableCommand {
                 let data = try await networkService.receiveData()
                 
                 do {
-                    // Try to parse the data as ServerResponse
                     let decoder = JSONDecoder()
-                    let response = try decoder.decode(ServerResponse.self, from: data)
                     
-                    // Process the server response
-                    let logger = AgentLogger(category: "Agent")
-                    logger.info("📩 Received observation at time step \(response.timeStep)")
-                    logger.info("🧭 Current location: (\(response.currentLocation.x), \(response.currentLocation.y)) - \(response.currentLocation.type)")
-                    logger.info("👀 Surroundings: \(response.surroundings.tiles.count) tiles and \(response.surroundings.agents.count) agents visible")
-                    
-                    log("📨 Received response: \(response.responseType) for agent \(response.agent_id)", verbose: true)
-                    
-                    // Only send an action if this is an observation message
-                    if response.responseType == "observation" {
-                        // Decide on the next action
-                        let action: AgentAction
-                        
-                        if randomMovement || openAIService == nil {
-                            // Use simple random movement logic
-                            action = createRandomAction(basedOn: response)
-                        } else {
-                            // Use LLM for decision making
-                            do {
-                                action = try await decideNextAction(basedOn: response, using: openAIService)
-                            } catch {
-                                log("❌ LLM decision error: \(error.localizedDescription), falling back to random", verbose: true)
-                                action = createRandomAction(basedOn: response)
-                            }
-                        }
-                        
-                        // Send the action to the server
-                        try await networkService.sendAction(action)
+                    // Try to parse the data as either a ServerResponse or ActionResponse
+                    if let actionResponse = try? decoder.decode(ActionResponse.self, from: data) {
+                        // Handle action response
                         let logger = AgentLogger(category: "Agent")
-                        logger.info("🚀 Sent action: \(action.action.rawValue) to \(action.targetTile?.x ?? 0), \(action.targetTile?.y ?? 0)")
+                        logger.info("📩 Received action response: \(actionResponse.message)")
+                        logger.info("🧭 Current position: (\(actionResponse.data.x), \(actionResponse.data.y)) - \(actionResponse.data.currentTileType)")
+                        
+                        log("📨 Received action response: \(actionResponse.responseType)", verbose: true)
                     } else {
+                        // Try to parse as regular ServerResponse for observations
+                        let response = try decoder.decode(ServerResponse.self, from: data)
+                        
+                        // Process the server response
                         let logger = AgentLogger(category: "Agent")
-                        logger.info("📝 Received \(response.responseType) message, not sending an action")
+                        logger.info("📩 Received observation at time step \(response.timeStep)")
+                        logger.info("🧭 Current location: (\(response.currentLocation.x), \(response.currentLocation.y)) - \(response.currentLocation.type)")
+                        logger.info("👀 Surroundings: \(response.surroundings.tiles.count) tiles and \(response.surroundings.agents.count) agents visible")
+                        
+                        log("📨 Received response: \(response.responseType) for agent \(response.agent_id)", verbose: true)
+                        
+                        // Only send an action if this is an observation message
+                        if response.responseType == "observation" {
+                            // Decide on the next action
+                            let action: AgentAction
+                            
+                            if randomMovement || openAIService == nil {
+                                // Use simple random movement logic
+                                action = createRandomAction(basedOn: response)
+                            } else {
+                                // Use LLM for decision making
+                                do {
+                                    action = try await decideNextAction(basedOn: response, using: openAIService)
+                                } catch {
+                                    log("❌ LLM decision error: \(error.localizedDescription), falling back to random", verbose: true)
+                                    action = createRandomAction(basedOn: response)
+                                }
+                            }
+                            
+                            // Send the action to the server
+                            try await networkService.sendAction(action)
+                            let logger = AgentLogger(category: "Agent")
+                            logger.info("🚀 Sent action: \(action.action.rawValue) to \(action.targetTile?.x ?? 0), \(action.targetTile?.y ?? 0)")
+                        } else {
+                            let logger = AgentLogger(category: "Agent")
+                            logger.info("📝 Received \(response.responseType) message, not sending an action")
+                        }
                     }
                 } catch {
                     // If parsing fails, show the raw data

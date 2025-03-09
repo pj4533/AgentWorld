@@ -9,6 +9,20 @@ struct ServerResponse: Codable {
     let responseType: String
 }
 
+// MARK: - ActionResponse
+struct ActionResponse: Codable {
+    let data: ActionResponseData
+    let message: String
+    let responseType: String
+}
+
+// MARK: - ActionResponseData
+struct ActionResponseData: Codable {
+    let currentTileType: String
+    let x: String
+    let y: String
+}
+
 // MARK: - Location
 struct Location: Codable {
     let x: Int
