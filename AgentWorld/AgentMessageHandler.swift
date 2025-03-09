@@ -110,12 +110,12 @@ class AgentMessageHandler {
             // Process the query based on its type
             switch queryRequest.query.lowercased() {
             case "observation":
-                // Send the current observation of the world
-                if let observation = world.createObservation(for: agentId, timeStep: 0) {
-                    completion(observation)
-                } else {
-                    sendError(to: agentId, message: "Could not create observation", completion: completion)
-                }
+                // Instead of sending an observation, inform the agent to wait for the next timestep
+                let response = SuccessResponse(
+                    message: "Observations are only sent at timestep changes",
+                    data: ["agentId": agentId]
+                )
+                completion(response)
                 
             case "status":
                 // Return server status information
@@ -180,10 +180,13 @@ class AgentMessageHandler {
             if success {
                 self.logger.info("Agent \(agentId) moved to (\(targetX), \(targetY))")
                 
-                // Notify the agent of success with new observation
-                if let observation = self.world.createObservation(for: agentId, timeStep: 0) {
-                    completion(observation)
-                }
+                // Notify the agent of success with a success response, NOT an observation
+                // Observations should only be sent at timestep changes
+                let successResponse = SuccessResponse(
+                    message: "Move successful",
+                    data: ["x": "\(targetX)", "y": "\(targetY)"]
+                )
+                completion(successResponse)
             } else {
                 self.logger.info("Agent \(agentId) failed to move to (\(targetX), \(targetY))")
                 self.sendError(to: agentId, message: "Invalid move - tile is not passable or is occupied", completion: completion)

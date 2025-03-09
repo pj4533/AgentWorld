@@ -376,7 +376,7 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         // Increment the current time step
         let nextTimeStep = currentTimeStep + 1
         
-        // Send updated observations to all connected agents
+        // Send updated observations to all connected agents only during timestep updates
         serverConnectionManager.sendObservationsToAll(timeStep: nextTimeStep)
         
         // Log the simulation step

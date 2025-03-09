@@ -217,13 +217,25 @@ class ServerConnectionManager {
         do {
             let jsonData = try JSONEncoder().encode(message)
             
+            // Determine the type of message being sent
+            let messageType: String
+            if let observation = message as? Observation {
+                messageType = "observation"
+            } else if let successResponse = message as? SuccessResponse {
+                messageType = "success"
+            } else if let errorResponse = message as? Observation.ErrorResponse {
+                messageType = "error"
+            } else {
+                messageType = String(describing: type(of: message))
+            }
+            
             connection.send(content: jsonData) { [weak self] error in
                 guard let self = self else { return }
                 
                 if let error = error {
                     self.logger.error("Error sending message to \(agentId): \(error.localizedDescription)")
                 } else {
-                    self.logger.debug("Sent message to \(agentId)")
+                    self.logger.info("Sent message type: \(messageType) to \(agentId)")
                 }
             }
         } catch {
