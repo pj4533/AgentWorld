@@ -96,59 +96,37 @@ struct AgentCommand: AsyncParsableCommand {
     // MARK: - Agent Decision Logic
     
     private func createAction(basedOn response: ServerResponse) -> AgentAction {
-        // Simple random movement strategy
-        let random = Int.random(in: 0...10)
+        // Get current position
+        let currentX = response.currentLocation.x
+        let currentY = response.currentLocation.y
         
-        // 20% chance to speak
-        if random < 2 {
-            return AgentAction(
-                action: .speak,
-                targetTile: nil,
-                message: "Hello from agent \(response.agent_id)!"
-            )
+        // Find neighboring tiles that aren't water
+        let walkableTiles = response.surroundings.tiles.filter { tile in
+            // Must be adjacent (including diagonals)
+            let distance = abs(tile.x - currentX) + abs(tile.y - currentY)
+            let isDiagonal = abs(tile.x - currentX) == 1 && abs(tile.y - currentY) == 1
+            let isAdjacent = (distance <= 2 && !isDiagonal) || (isDiagonal && distance == 2)
+            
+            // Must not be water
+            let isWalkable = tile.type != .water
+            
+            return isAdjacent && isWalkable
         }
-        // 20% chance to stay put
-        else if random < 4 {
+        
+        // Choose a random walkable tile
+        if let targetTile = walkableTiles.randomElement() {
             return AgentAction(
-                action: .wait,
-                targetTile: nil,
+                action: .move,
+                targetTile: Coordinate(x: targetTile.x, y: targetTile.y),
                 message: nil
             )
-        } 
-        // 60% chance to move randomly
-        else {
-            // Get current position
-            let currentX = response.currentLocation.x
-            let currentY = response.currentLocation.y
-            
-            // Find neighboring tiles that aren't water
-            let walkableTiles = response.surroundings.tiles.filter { tile in
-                // Must be adjacent (including diagonals)
-                let distance = abs(tile.x - currentX) + abs(tile.y - currentY)
-                let isDiagonal = abs(tile.x - currentX) == 1 && abs(tile.y - currentY) == 1
-                let isAdjacent = (distance <= 2 && !isDiagonal) || (isDiagonal && distance == 2)
-                
-                // Must not be water
-                let isWalkable = tile.type != .water
-                
-                return isAdjacent && isWalkable
-            }
-            
-            // Choose a random walkable tile
-            if let targetTile = walkableTiles.randomElement() {
-                return AgentAction(
-                    action: .move,
-                    targetTile: Coordinate(x: targetTile.x, y: targetTile.y),
-                    message: nil
-                )
-            } else {
-                // If no walkable tiles, wait
-                return AgentAction(
-                    action: .wait,
-                    targetTile: nil,
-                    message: nil
-                )
-            }
+        } else {
+            // If no walkable tiles, stay in place but using move action
+            return AgentAction(
+                action: .move,
+                targetTile: Coordinate(x: currentX, y: currentY),
+                message: nil
+            )
         }
     }
 }

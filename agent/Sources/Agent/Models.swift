@@ -89,6 +89,4 @@ struct Coordinate: Codable {
 // MARK: - ActionType
 enum ActionType: String, Codable {
     case move
-    case speak
-    case wait
 }
