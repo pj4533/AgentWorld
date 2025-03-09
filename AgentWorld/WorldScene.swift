@@ -376,17 +376,66 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         // Increment the current time step
         let nextTimeStep = currentTimeStep + 1
         
-        // Send updated observations to all connected agents only during timestep updates
+        // Add clear marker for debugging logs
+        logger.info("=====================================================")
+        logger.info("🔄 TIMESTEP \(nextTimeStep) STARTING")
+        logger.info("=====================================================")
+        
+        // CRITICAL FIX #1: The ServerConnectionManager has the authoritative world state
+        // Since it's the component that receives agent move commands and updates their positions
+        let authoritative = serverConnectionManager.world
+        
+        // Log world state from server for verification
+        logger.info("🌍 Agent positions in ServerConnectionManager's world:")
+        for (agentId, agent) in authoritative.agents {
+            logger.info("Agent \(agentId) at (\(agent.position.x), \(agent.position.y))")
+        }
+        
+        // CRITICAL FIX #2: Always use the server's world for our local state
+        // to ensure we have the most up-to-date agent positions
+        self.world = authoritative
+        
+        // CRITICAL FIX #3: Since we'll be directly using the server's world,
+        // make sure to tell the server to use our reference too (this ensures both components
+        // have the exact same world reference)
+        self.serverConnectionManager.updateWorld(self.world)
+        
+        // Now check our local world state to verify it matches
+        logger.info("🌍 After sync - Agent positions in WorldScene:")
+        for (agentId, agent) in self.world.agents {
+            logger.info("Agent \(agentId) at (\(agent.position.x), \(agent.position.y))")
+        }
+        
+        // Use debug dumps to validate the self.world structure
+        logger.info("------ POSITIONS VALIDATION ------")
+        for (agentId, agent) in self.world.agents {
+            let currentTileType = self.world.tiles[agent.position.y][agent.position.x]
+            logger.info("Agent \(agentId) at (\(agent.position.x), \(agent.position.y)) on \(currentTileType.description) tile")
+        }
+        
+        // CRITICAL FIX #4: Create and validate a test observation before sending
+        // to verify our agent position is correctly reflected
+        if let agent = self.world.agents.first {
+            let agentId = agent.key
+            if let testObservation = self.world.createObservation(for: agentId, timeStep: nextTimeStep) {
+                logger.info("✅ Test observation for agent \(agentId): position=(\(testObservation.currentLocation.x), \(testObservation.currentLocation.y)) type=\(testObservation.currentLocation.type)")
+            }
+        }
+        
+        // Send observations using the verified synchronized world state
+        logger.info("📤 SENDING OBSERVATIONS - timestep=\(nextTimeStep)")
         serverConnectionManager.sendObservationsToAll(timeStep: nextTimeStep)
         
-        // Log the simulation step
-        logger.info("Simulating time step: \(nextTimeStep)")
-        
-        // Update the UI with new agent positions
+        // Update the renderer with the current world state
         DispatchQueue.main.async {
-            // Use worldDidUpdate which preserves the existing renderer and its texture caches
-            self.worldDidUpdate(self.world)
+            // Update the renderer with the verified world
+            self.worldRenderer.updateWorld(self.world)
+            self.worldRenderer.renderWorld(in: self)
         }
+        
+        logger.info("=====================================================")
+        logger.info("🔄 TIMESTEP \(nextTimeStep) COMPLETED")
+        logger.info("=====================================================")
     }
     
     // MARK: - Public Methods
@@ -502,8 +551,18 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
     // MARK: - ServerConnectionManagerDelegate
     
     func worldDidUpdate(_ updatedWorld: World) {
-        // The world has been updated, so update the renderer and redraw
+        // Log agent positions in the updated world for debugging
+        logger.info("🔄 worldDidUpdate called - Agents in updated world:")
+        for (agentId, agent) in updatedWorld.agents {
+            logger.info("Agent \(agentId) at (\(agent.position.x), \(agent.position.y))")
+        }
+        
+        // Update our local world reference
         self.world = updatedWorld
+        
+        // CRITICAL FIX: Make sure ServerConnectionManager also has the updated world
+        // This ensures both components stay in sync
+        serverConnectionManager.updateWorld(updatedWorld)
         
         // Update the world reference in the renderer without recreating it
         DispatchQueue.main.async {

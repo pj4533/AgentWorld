@@ -276,16 +276,91 @@ class ServerConnectionManager {
     
     // Updates the world with a new instance
     func updateWorld(_ newWorld: World) {
+        logger.info("🔄 ServerConnectionManager updating world reference, current agents: \(world.agents.count)")
+        
+        // Compare the world state before the update (safely)
+        if !world.agents.isEmpty {
+            for (agentId, agentInfo) in world.agents {
+                logger.info("Before update: Agent \(agentId) at (\(agentInfo.position.x), \(agentInfo.position.y))")
+            }
+        } else {
+            logger.info("Before update: No agents in world")
+        }
+        
+        // Update the world reference
         self.world = newWorld
+        
+        // Verify the new world state (safely)
+        logger.info("After update: World now has \(world.agents.count) agents")
+        if !world.agents.isEmpty {
+            for (agentId, agentInfo) in world.agents {
+                logger.info("After update: Agent \(agentId) at (\(agentInfo.position.x), \(agentInfo.position.y))")
+            }
+        } else {
+            logger.info("After update: No agents in world")
+        }
     }
     
     // Send observations to all connected agents
     func sendObservationsToAll(timeStep: Int) {
-        for agentId in connections.keys {
-            if let observation = world.createObservation(for: agentId, timeStep: timeStep) {
-                sendMessage(observation, to: agentId)
+        // Add an obvious log separator for debugging
+        logger.info("========== SENDING OBSERVATIONS [TIMESTEP \(timeStep)] ==========")
+        logger.info("Current world has \(world.agents.count) agents")
+        
+        // CRITICAL FIX: Print detailed information about all agents for debugging
+        if world.agents.isEmpty {
+            logger.info("⚠️ NO AGENTS FOUND IN WORLD")
+        } else {
+            for (agentId, agent) in world.agents {
+                // Double-check each agent has a valid position
+                let pos = agent.position
+                if pos.x >= 0 && pos.x < World.size && pos.y >= 0 && pos.y < World.size {
+                    let tileType = world.tiles[pos.y][pos.x]
+                    logger.info("✅ Agent \(agentId) at (\(pos.x), \(pos.y)) on \(tileType.description) tile")
+                } else {
+                    logger.error("⚠️ Agent \(agentId) has INVALID position: (\(pos.x), \(pos.y))")
+                }
             }
         }
+        
+        // Take a local reference of connections at this moment to avoid issues
+        // if connections change during processing
+        let currentConnections = self.connections
+        
+        // Process each connected agent
+        for agentId in currentConnections.keys {
+            // Safely access the agent info from the world
+            guard let agent = world.agents[agentId] else {
+                logger.error("⚠️ Agent \(agentId) not found in world when creating observation")
+                continue
+            }
+            
+            // Get the agent's current position for logging
+            let pos = agent.position
+            
+            // Create observation directly from the world
+            if let observation = world.createObservation(for: agentId, timeStep: timeStep) {
+                // CRITICAL FIX: Verify the observation's position matches what we expect
+                if observation.currentLocation.x != agent.position.x || 
+                   observation.currentLocation.y != agent.position.y {
+                    logger.error("⚠️ CRITICAL ERROR: Observation position (\(observation.currentLocation.x), \(observation.currentLocation.y))" +
+                               " doesn't match world state (\(agent.position.x), \(agent.position.y))")
+                }
+                
+                // Log detailed information about what we're sending
+                logger.info("📤 Sending observation to agent \(agentId):")
+                logger.info("   - Position: (\(observation.currentLocation.x), \(observation.currentLocation.y))")
+                logger.info("   - Tile type: \(observation.currentLocation.type)")
+                logger.info("   - Timestep: \(observation.timeStep)")
+                
+                // Send the verified observation
+                sendMessage(observation, to: agentId)
+            } else {
+                logger.error("⚠️ Failed to create observation for agent \(agentId)")
+            }
+        }
+        
+        logger.info("========== OBSERVATIONS SENT ==========")
     }
     
     func stopServer() {
