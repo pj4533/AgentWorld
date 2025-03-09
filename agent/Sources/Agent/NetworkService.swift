@@ -1,9 +1,10 @@
 import Foundation
 import Network
 
-// Simple logging function
+// Simple logging function that checks if we're in verbose mode
 fileprivate func log(_ message: String, verbose: Bool = false) {
-    if verbose || ProcessInfo.processInfo.environment["AGENT_VERBOSE"] == "1" {
+    // Only log if we've set AGENT_VERBOSE environment variable
+    if verbose && ProcessInfo.processInfo.environment["AGENT_VERBOSE"] == "1" {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "HH:mm:ss.SSS"
         let timestamp = dateFormatter.string(from: Date())

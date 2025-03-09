@@ -2,8 +2,24 @@ import Foundation
 import ArgumentParser
 
 // MARK: - Logger setup
-fileprivate func log(_ message: String, verbose: Bool = false) {
-    if verbose || ProcessInfo.processInfo.environment["AGENT_VERBOSE"] == "1" {
+// Avoid direct mutable state by using environment variables only
+fileprivate func setVerboseMode(_ verbose: Bool) {
+    if verbose {
+        setenv("AGENT_VERBOSE", "1", 1)
+    } else {
+        unsetenv("AGENT_VERBOSE")
+    }
+}
+
+// Check if verbose mode is enabled
+fileprivate func isVerboseMode() -> Bool {
+    return ProcessInfo.processInfo.environment["AGENT_VERBOSE"] == "1"
+}
+
+// Central logging function that respects verbose flag
+fileprivate func log(_ message: String, verbose: Bool = false, forceShow: Bool = false) {
+    // Only log if we're in verbose mode OR this is a message that should always be shown
+    if forceShow || (verbose && isVerboseMode()) {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "HH:mm:ss.SSS"
         let timestamp = dateFormatter.string(from: Date())
@@ -37,13 +53,14 @@ struct AgentCommand: AsyncParsableCommand {
     
     // MARK: - Command execution
     func run() async throws {
-        // Set environment variable for verbose logging if flag is enabled
+        // Set verbose mode if flag is enabled
+        setVerboseMode(verbose)
+        
         if verbose {
-            setenv("AGENT_VERBOSE", "1", 1)
             print("Verbose logging enabled 📝")
         }
         
-        log("🚀 Agent starting up!", verbose: true)
+        log("🚀 Agent starting up!", verbose: true, forceShow: true)
         
         // Load environment variables from .env file
         EnvironmentService.loadEnvironment(from: envFile)
@@ -244,13 +261,13 @@ struct AgentCommand: AsyncParsableCommand {
 @main
 struct AgentMain {
     static func main() async {
-        // Check for verbose flag
-        if ProcessInfo.processInfo.environment["AGENT_VERBOSE"] == "1" ||
-           ProcessInfo.processInfo.arguments.contains("--verbose") {
+        // Check for direct command line flag usage
+        if ProcessInfo.processInfo.arguments.contains("--verbose") {
+            setVerboseMode(true)
             print("Verbose logging enabled")
         }
         
-        log("📱 Agent program starting", verbose: true)
+        log("📱 Agent program starting", verbose: true, forceShow: true)
         await AgentCommand.main()
     }
 }
