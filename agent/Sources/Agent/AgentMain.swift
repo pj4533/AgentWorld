@@ -3,7 +3,19 @@ import ArgumentParser
 import OSLog
 
 // MARK: - Logger setup
-fileprivate let logger = Logger(subsystem: "com.agentworld.agent", category: "Agent")
+fileprivate let subsystemIdentifier = "com.agentworld.agent"
+fileprivate let logger = Logger(subsystem: subsystemIdentifier, category: "Agent")
+
+// Console logger for development - much simpler approach
+fileprivate func logToConsole(_ type: String, _ message: String) {
+    if ProcessInfo.processInfo.environment["AGENT_LOG_CONSOLE"] == "1" || 
+       ProcessInfo.processInfo.arguments.contains("--debug-logging") {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "HH:mm:ss.SSS"
+        let timestamp = dateFormatter.string(from: Date())
+        print("[\(timestamp)] [\(type)] \(message)")
+    }
+}
 
 // MARK: - Agent Command
 struct AgentCommand: AsyncParsableCommand {
@@ -26,9 +38,19 @@ struct AgentCommand: AsyncParsableCommand {
     @Flag(name: .long, help: "Use random movement instead of LLM 🎲")
     var randomMovement: Bool = false
     
+    @Flag(name: .long, help: "Enable console logging for debugging 🐞")
+    var debugLogging: Bool = false
+    
     // MARK: - Command execution
     func run() async throws {
+        // Set environment variable for console logging if flag is enabled
+        if debugLogging {
+            setenv("AGENT_LOG_CONSOLE", "1", 1)
+            print("Debug logging enabled to console 🐞")
+        }
+        
         logger.info("🚀 Agent starting up!")
+        logToConsole("INFO", "🚀 Agent starting up!")
         
         // Load environment variables from .env file
         EnvironmentService.loadEnvironment(from: envFile)
@@ -96,6 +118,7 @@ struct AgentCommand: AsyncParsableCommand {
                     print("👀 Surroundings: \(response.surroundings.tiles.count) tiles and \(response.surroundings.agents.count) agents visible")
                     
                     logger.debug("📨 Received response: \(response.responseType) for agent \(response.agent_id)")
+                    logToConsole("DEBUG", "📨 Received response: \(response.responseType) for agent \(response.agent_id)")
                     
                     // Only send an action if this is an observation message
                     if response.responseType == "observation" {
@@ -111,6 +134,7 @@ struct AgentCommand: AsyncParsableCommand {
                                 action = try await decideNextAction(basedOn: response, using: openAIService)
                             } catch {
                                 logger.error("❌ LLM decision error: \(error.localizedDescription), falling back to random")
+                                logToConsole("ERROR", "❌ LLM decision error: \(error.localizedDescription), falling back to random")
                                 action = createRandomAction(basedOn: response)
                             }
                         }
@@ -179,6 +203,7 @@ struct AgentCommand: AsyncParsableCommand {
             
             if !isAdjacent || isWater {
                 logger.warning("⚠️ LLM suggested invalid move to (\(targetTile.x), \(targetTile.y)), using fallback")
+                logToConsole("WARNING", "⚠️ LLM suggested invalid move to (\(targetTile.x), \(targetTile.y)), using fallback")
                 return createRandomAction(basedOn: response)
             }
         }
@@ -229,7 +254,14 @@ struct AgentCommand: AsyncParsableCommand {
 @main
 struct AgentMain {
     static func main() async {
+        // Check for debug logging flag
+        if ProcessInfo.processInfo.environment["AGENT_LOG_CONSOLE"] == "1" ||
+           ProcessInfo.processInfo.arguments.contains("--debug-logging") {
+            print("Debug logging enabled to console")
+        }
+        
         logger.info("📱 Agent program starting")
+        logToConsole("INFO", "📱 Agent program starting")
         await AgentCommand.main()
     }
 }

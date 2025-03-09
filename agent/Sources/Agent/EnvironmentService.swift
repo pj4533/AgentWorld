@@ -1,6 +1,49 @@
 import Foundation
 import OSLog
 
+// Extend Logger to add console logging capability
+extension Logger {
+    func infoConsole(_ message: String) {
+        self.info("\(message)")
+        if ProcessInfo.processInfo.environment["AGENT_LOG_CONSOLE"] == "1" {
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "HH:mm:ss.SSS"
+            let timestamp = dateFormatter.string(from: Date())
+            print("[\(timestamp)] [INFO] \(message)")
+        }
+    }
+    
+    func debugConsole(_ message: String) {
+        self.debug("\(message)")
+        if ProcessInfo.processInfo.environment["AGENT_LOG_CONSOLE"] == "1" {
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "HH:mm:ss.SSS"
+            let timestamp = dateFormatter.string(from: Date())
+            print("[\(timestamp)] [DEBUG] \(message)")
+        }
+    }
+    
+    func errorConsole(_ message: String) {
+        self.error("\(message)")
+        if ProcessInfo.processInfo.environment["AGENT_LOG_CONSOLE"] == "1" {
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "HH:mm:ss.SSS"
+            let timestamp = dateFormatter.string(from: Date())
+            print("[\(timestamp)] [ERROR] \(message)")
+        }
+    }
+    
+    func warningConsole(_ message: String) {
+        self.warning("\(message)")
+        if ProcessInfo.processInfo.environment["AGENT_LOG_CONSOLE"] == "1" {
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "HH:mm:ss.SSS"
+            let timestamp = dateFormatter.string(from: Date())
+            print("[\(timestamp)] [WARNING] \(message)")
+        }
+    }
+}
+
 struct EnvironmentService {
     private static let logger = Logger(subsystem: "com.agentworld.agent", category: "EnvironmentService")
     
@@ -41,10 +84,10 @@ struct EnvironmentService {
                 logger.debug("🔑 Set environment variable: \(key)")
             }
             
-            logger.info("✅ Environment loaded successfully from \(path)")
+            logger.infoConsole("✅ Environment loaded successfully from \(path)")
         } catch {
-            logger.warning("⚠️ Failed to load .env file: \(error.localizedDescription)")
-            logger.info("ℹ️ Will use existing environment variables instead")
+            logger.warningConsole("⚠️ Failed to load .env file: \(error.localizedDescription)")
+            logger.infoConsole("ℹ️ Will use existing environment variables instead")
         }
     }
     
