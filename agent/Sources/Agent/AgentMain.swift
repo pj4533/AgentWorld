@@ -64,10 +64,15 @@ struct AgentCommand: AsyncParsableCommand {
                     
                     logger.debug("📨 Received response: \(response.responseType) for agent \(response.agent_id)")
                     
-                    // Implement simple agent decision logic
-                    let action = createAction(basedOn: response)
-                    try await networkService.sendAction(action)
-                    print("🚀 Sent action: \(action.action.rawValue)")
+                    // Only send an action if this is a timestep message
+                    if response.responseType == "timestep" {
+                        // Implement simple agent decision logic
+                        let action = createAction(basedOn: response)
+                        try await networkService.sendAction(action)
+                        print("🚀 Sent action: \(action.action.rawValue)")
+                    } else {
+                        print("📝 Received \(response.responseType) message, not sending an action")
+                    }
                 } catch {
                     // If parsing fails, show the raw data
                     if let message = String(data: data, encoding: .utf8) {
