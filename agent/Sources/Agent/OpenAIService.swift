@@ -117,7 +117,12 @@ actor OpenAIService {
     func decideNextAction(observation: ServerResponse) async throws -> AgentAction {
         logger.info("🧠 Deciding next action based on observation at time step \(observation.timeStep)")
         
-        let systemPrompt = "You are an explorer in a new world. Try to see as much of the world as you can, without revisiting areas you have already visited."
+        let systemPrompt = """
+        You are an explorer in a new world. 
+        Try to see as much of the world as you can, without revisiting areas you have already visited.
+
+        You cannot pass through water or mountains, but you can move one tile in any direction.
+        """
         
         // Create a user prompt with the current observation
         let encoder = JSONEncoder()
