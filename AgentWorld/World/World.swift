@@ -114,10 +114,18 @@ class World {
     
     func removeAgent(id: String) -> Bool {
         // Remove the agent from the agents dictionary
-        if agents.removeValue(forKey: id) != nil {
-            return true
+        guard let removedAgent = agents.removeValue(forKey: id) else {
+            return false
         }
-        return false
+        
+        // Log that we're removing the agent from the tile map
+        let logger = AppLogger(category: "World")
+        logger.info("Removing agent \(id) from tile position (\(removedAgent.position.x), \(removedAgent.position.y))")
+        
+        // No need to update tiles array - agents are rendered separately from the tile map
+        // The agentID is only used in the TileInfo struct for observations
+        
+        return true
     }
     
     func isValidForAgent(x: Int, y: Int) -> Bool {

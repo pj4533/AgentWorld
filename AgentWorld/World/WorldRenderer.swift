@@ -26,6 +26,11 @@ class WorldRenderer {
     private var currentZoomLevel: CGFloat = 1.0
     private var useSimplifiedAgents: Bool = false
     
+    // Method to get the agent node for a specific agent ID
+    public func getAgentNode(for agentId: String) -> SKSpriteNode? {
+        return agentNodeCache[agentId]
+    }
+    
     init(world: World, tileSize: CGFloat) {
         self.world = world
         self.tileSize = tileSize
@@ -68,6 +73,8 @@ class WorldRenderer {
     public func updateWorld(_ newWorld: World) {
         self.world = newWorld
         
+        let logger = AppLogger(category: "WorldRenderer")
+        
         // Remove any cached agent nodes for agents that don't exist anymore
         // and cancel any running animations
         let currentAgentIds = Set(newWorld.agents.keys)
@@ -80,6 +87,7 @@ class WorldRenderer {
                     // Stop all animations and remove from parent
                     node.removeAllActions()
                     node.removeFromParent()
+                    logger.info("Removing agent node for disconnected agent: \(agentId)")
                 }
                 agentNodeCache.removeValue(forKey: agentId)
             } else {
@@ -210,7 +218,7 @@ class WorldRenderer {
                 node.removeFromParent()
                 node.removeAllActions()
                 agentNodeCache.removeValue(forKey: agentId)
-                logger.debug("Removed agent node for \(agentId)")
+                logger.info("Removed agent node for disconnected agent: \(agentId)")
             }
         }
         

@@ -63,6 +63,15 @@ extension WorldScene {
     
     func agentDidDisconnect(id: String) {
         logger.info("Agent disconnected: \(id)")
+        
+        // Force the world renderer to remove any tile/sprite associated with this agent
+        if let node = worldRenderer.getAgentNode(for: id) {
+            node.removeFromParent()
+            node.removeAllActions()
+            logger.info("Removed agent node for \(id) from scene")
+        }
+        
+        // Update the world and notify listeners
         updateWorldAndNotify(agentId: id, isDisconnect: true)
     }
     
