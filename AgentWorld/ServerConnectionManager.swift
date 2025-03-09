@@ -36,7 +36,12 @@ class ServerConnectionManager {
     private var connections: [String: ConnectionProtocol] = [:]
     
     // Delegate to notify observers of world changes
-    weak var delegate: ServerConnectionManagerDelegate?
+    weak var delegate: ServerConnectionManagerDelegate? {
+        didSet {
+            // Pass the delegate to the message handler
+            messageHandler.delegate = delegate
+        }
+    }
     
     // Reference to the world for agent placement and movement
     var world: World {
@@ -54,6 +59,8 @@ class ServerConnectionManager {
         self.world = world
         self.factory = factory
         self.messageHandler = AgentMessageHandler(world: world)
+        
+        // Note: The delegate will be set when the delegate property is set on this class
         
         // We don't throw from the initializer, but handle errors internally with logging
         do {

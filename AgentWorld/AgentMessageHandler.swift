@@ -13,6 +13,9 @@ class AgentMessageHandler {
     private let logger = AppLogger(category: "AgentMessageHandler")
     private(set) var world: World
     
+    // Delegate to notify about world changes
+    weak var delegate: ServerConnectionManagerDelegate?
+    
     init(world: World) {
         self.world = world
     }
@@ -179,6 +182,14 @@ class AgentMessageHandler {
             
             if success {
                 self.logger.info("Agent \(agentId) moved to (\(targetX), \(targetY))")
+                
+                // Notify the delegate that the world has been updated
+                self.delegate?.worldDidUpdate(self.world)
+                
+                // Publish a notification that agents have changed
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: .agentsDidChange, object: self.world)
+                }
                 
                 // Notify the agent of success with a success response, NOT an observation
                 // Observations should only be sent at timestep changes
