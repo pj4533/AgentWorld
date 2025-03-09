@@ -63,15 +63,8 @@ class MockServerConnectionManager: ServerConnectionManager {
         let mockServer = MockServerConnectionManager(world: world)
         let scene = WorldScene() // Create a real scene
         
-        // Access the server connection manager using reflection (since it's private)
-        let mirror = Mirror(reflecting: scene)
-        if let serverField = mirror.children.first(where: { $0.label == "serverConnectionManager" }) {
-            // This is a simplified approach - in real testing you'd need more control or mocking
-            let setter = Selector(("setServerConnectionManager:"))
-            if scene.responds(to: setter) {
-                scene.perform(setter, with: mockServer)
-            }
-        }
+        // Direct access to server connection manager now that it's internal
+        scene.serverConnectionManager = mockServer
         
         // Set the world in the scene
         scene.setWorld(world)

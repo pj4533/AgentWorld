@@ -20,7 +20,8 @@ class WorldScene: SKScene, InputHandlerDelegate, WorldSceneDelegate {
     private var worldRenderer: WorldRenderer!
     private var inputHandler: InputHandler!
     private var currentTimeStep: Int = 0
-    private var serverConnectionManager: ServerConnectionManager!
+    // Changed to internal for testability
+    internal var serverConnectionManager: ServerConnectionManager!
     
     private let logger = AppLogger(category: "WorldScene")
     
