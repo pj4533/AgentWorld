@@ -94,18 +94,24 @@ extension MockAppLogger: LoggerProvider {}
         // Create invalid JSON data
         let invalidData = "not valid json".data(using: .utf8)!
         
+        // Use a semaphore for synchronization instead of XCTest expectations
+        let semaphore = DispatchSemaphore(value: 0)
+        
         var receivedResponse: Encodable?
         handler.handleMessage(invalidData, from: "test-agent") { response in
             receivedResponse = response
+            semaphore.signal()
         }
         
-        // Wait a moment for async processing
-        try! await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        // Wait for the completion handler with a timeout
+        let result = semaphore.wait(timeout: .now() + 1.0)
+        #expect(result == .success, "Timed out waiting for response")
         
+        // Now check the response after we're sure it's been received
         if let errorResponse = receivedResponse as? Observation.ErrorResponse {
             #expect(errorResponse.error == "Invalid message format")
         } else {
-            #expect(false, "Expected error response but got something else")
+            #expect(false, "Expected error response but got something else: \(String(describing: receivedResponse))")
         }
     }
     
@@ -118,23 +124,28 @@ extension MockAppLogger: LoggerProvider {}
         let unknownMessage = ["unknown": "type"]
         let data = try! JSONSerialization.data(withJSONObject: unknownMessage)
         
+        // Use a semaphore for synchronization
+        let semaphore = DispatchSemaphore(value: 0)
+        
         var receivedResponse: Encodable?
         handler.handleMessage(data, from: "test-agent") { response in
             receivedResponse = response
+            semaphore.signal()
         }
         
-        // Wait for processing
-        try! await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        // Wait for the completion handler with a timeout
+        let result = semaphore.wait(timeout: .now() + 1.0)
+        #expect(result == .success, "Timed out waiting for response")
         
         if let errorResponse = receivedResponse as? Observation.ErrorResponse {
             #expect(errorResponse.error.contains("Unable to parse message"))
         } else {
-            #expect(false, "Expected error response but got something else")
+            #expect(false, "Expected error response but got something else: \(String(describing: receivedResponse))")
         }
     }
     
     // Test handling action message - move
-    @Test func testHandleMoveAction() throws {
+    @Test func testHandleMoveAction() async throws {
         let world = createTestWorld()
         let handler = AgentMessageHandler(world: world)
         
@@ -148,27 +159,33 @@ extension MockAppLogger: LoggerProvider {}
         
         // Use a semaphore for synchronization
         let semaphore = DispatchSemaphore(value: 0)
-        var receivedResponse: Encodable?
         
+        var receivedResponse: Encodable?
         handler.handleMessage(data, from: "test-agent") { response in
             receivedResponse = response
             semaphore.signal()
         }
         
-        // Wait for the completion handler
-        _ = semaphore.wait(timeout: .now() + 1.0)
+        // Wait for the completion handler with a timeout
+        let result = semaphore.wait(timeout: .now() + 1.0)
+        #expect(result == .success, "Timed out waiting for response")
         
         // Verify the agent moved
-        #expect(handler.world.agents["test-agent"]?.position.x == 6)
-        #expect(handler.world.agents["test-agent"]?.position.y == 5)
-        
-        // Verify observation response type
-        if let observation = receivedResponse as? Observation {
-            #expect(observation.agent_id == "test-agent")
-            #expect(observation.currentLocation.x == 6)
-            #expect(observation.currentLocation.y == 5)
+        if let agent = handler.world.agents["test-agent"] {
+            #expect(agent.position.x == 6)
+            #expect(agent.position.y == 5)
         } else {
-            #expect(false, "Expected observation but got something else")
+            #expect(false, "Agent not found in world")
+        }
+        
+        // Verify success response type
+        if let successResponse = receivedResponse as? SuccessResponse {
+            #expect(successResponse.message == "Move successful")
+            #expect(successResponse.data?["x"] == "6")
+            #expect(successResponse.data?["y"] == "5")
+            #expect(successResponse.data?["currentTileType"] == "grass")
+        } else {
+            #expect(false, "Expected success response but got something else: \(String(describing: receivedResponse))")
         }
     }
     
@@ -185,13 +202,18 @@ extension MockAppLogger: LoggerProvider {}
         
         let data = try! JSONSerialization.data(withJSONObject: invalidMoveAction)
         
+        // Use a semaphore for synchronization
+        let semaphore = DispatchSemaphore(value: 0)
+        
         var receivedResponse: Encodable?
         handler.handleMessage(data, from: "test-agent") { response in
             receivedResponse = response
+            semaphore.signal()
         }
         
-        // Short wait to allow the async code to complete
-        try! await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        // Wait for the completion handler with a timeout
+        let result = semaphore.wait(timeout: .now() + 1.0)
+        #expect(result == .success, "Timed out waiting for response")
         
         // Verify the agent did not move
         #expect(handler.world.agents["test-agent"]?.position.x == 5)
@@ -201,12 +223,12 @@ extension MockAppLogger: LoggerProvider {}
         if let errorResponse = receivedResponse as? Observation.ErrorResponse {
             #expect(errorResponse.error.contains("Invalid move"))
         } else {
-            #expect(false, "Expected error response but got something else")
+            #expect(false, "Expected error response but got something else: \(String(describing: receivedResponse))")
         }
     }
     
     // Test handling query message - observation
-    @Test func testHandleObservationQuery() throws {
+    @Test func testHandleObservationQuery() async throws {
         let world = createTestWorld()
         let handler = AgentMessageHandler(world: world)
         
@@ -220,23 +242,23 @@ extension MockAppLogger: LoggerProvider {}
         
         // Use a semaphore for synchronization
         let semaphore = DispatchSemaphore(value: 0)
-        var receivedResponse: Encodable?
         
+        var receivedResponse: Encodable?
         handler.handleMessage(data, from: "test-agent") { response in
             receivedResponse = response
             semaphore.signal()
         }
         
-        // Wait for the completion handler
-        _ = semaphore.wait(timeout: .now() + 1.0)
+        // Wait for the completion handler with a timeout
+        let result = semaphore.wait(timeout: .now() + 1.0)
+        #expect(result == .success, "Timed out waiting for response")
         
-        // Verify observation response
-        if let observation = receivedResponse as? Observation {
-            #expect(observation.agent_id == "test-agent")
-            #expect(observation.currentLocation.x == 5)
-            #expect(observation.currentLocation.y == 5)
+        // Verify success response (not observation, as we changed the behavior)
+        if let successResponse = receivedResponse as? SuccessResponse {
+            #expect(successResponse.message == "Observations are only sent at timestep changes")
+            #expect(successResponse.data?["agentId"] == "test-agent")
         } else {
-            #expect(false, "Expected observation but got something else")
+            #expect(false, "Expected success response but got something else: \(String(describing: receivedResponse))")
         }
     }
     
@@ -252,13 +274,18 @@ extension MockAppLogger: LoggerProvider {}
         
         let data = try! JSONSerialization.data(withJSONObject: queryMessage)
         
+        // Use a semaphore for synchronization
+        let semaphore = DispatchSemaphore(value: 0)
+        
         var receivedResponse: Encodable?
         handler.handleMessage(data, from: "test-agent") { response in
             receivedResponse = response
+            semaphore.signal()
         }
         
-        // Wait for processing
-        try! await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        // Wait for the completion handler with a timeout
+        let result = semaphore.wait(timeout: .now() + 1.0)
+        #expect(result == .success, "Timed out waiting for response")
         
         // Verify success response
         if let successResponse = receivedResponse as? SuccessResponse {
@@ -266,7 +293,7 @@ extension MockAppLogger: LoggerProvider {}
             #expect(successResponse.data?["status"] == "online")
             #expect(successResponse.data?["agents"] == "1")
         } else {
-            #expect(false, "Expected success response but got something else")
+            #expect(false, "Expected success response but got something else: \(String(describing: receivedResponse))")
         }
     }
     
@@ -282,20 +309,25 @@ extension MockAppLogger: LoggerProvider {}
         
         let data = try! JSONSerialization.data(withJSONObject: systemMessage)
         
+        // Use a semaphore for synchronization
+        let semaphore = DispatchSemaphore(value: 0)
+        
         var receivedResponse: Encodable?
         handler.handleMessage(data, from: "test-agent") { response in
             receivedResponse = response
+            semaphore.signal()
         }
         
-        // Wait for processing
-        try! await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        // Wait for the completion handler with a timeout
+        let result = semaphore.wait(timeout: .now() + 1.0)
+        #expect(result == .success, "Timed out waiting for response")
         
         // Verify pong response
         if let successResponse = receivedResponse as? SuccessResponse {
             #expect(successResponse.message == "pong")
             #expect(successResponse.data?["timestamp"] != nil)
         } else {
-            #expect(false, "Expected success response but got something else")
+            #expect(false, "Expected success response but got something else: \(String(describing: receivedResponse))")
         }
     }
     
@@ -311,13 +343,18 @@ extension MockAppLogger: LoggerProvider {}
         
         let data = try! JSONSerialization.data(withJSONObject: systemMessage)
         
+        // Use a semaphore for synchronization
+        let semaphore = DispatchSemaphore(value: 0)
+        
         var receivedResponse: Encodable?
         handler.handleMessage(data, from: "test-agent") { response in
             receivedResponse = response
+            semaphore.signal()
         }
         
-        // Wait for processing
-        try! await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        // Wait for the completion handler with a timeout
+        let result = semaphore.wait(timeout: .now() + 1.0)
+        #expect(result == .success, "Timed out waiting for response")
         
         // Verify info response
         if let successResponse = receivedResponse as? SuccessResponse {
@@ -325,7 +362,7 @@ extension MockAppLogger: LoggerProvider {}
             #expect(successResponse.data?["worldSize"] == "\(World.size)")
             #expect(successResponse.data?["agentCount"] == "1")
         } else {
-            #expect(false, "Expected success response but got something else")
+            #expect(false, "Expected success response but got something else: \(String(describing: receivedResponse))")
         }
     }
     
@@ -341,19 +378,24 @@ extension MockAppLogger: LoggerProvider {}
         
         let data = try! JSONSerialization.data(withJSONObject: systemMessage)
         
+        // Use a semaphore for synchronization
+        let semaphore = DispatchSemaphore(value: 0)
+        
         var receivedResponse: Encodable?
         handler.handleMessage(data, from: "test-agent") { response in
             receivedResponse = response
+            semaphore.signal()
         }
         
-        // Wait for processing
-        try! await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        // Wait for the completion handler with a timeout
+        let result = semaphore.wait(timeout: .now() + 1.0)
+        #expect(result == .success, "Timed out waiting for response")
         
         // Verify error response
         if let errorResponse = receivedResponse as? Observation.ErrorResponse {
             #expect(errorResponse.error.contains("Unknown system command"))
         } else {
-            #expect(false, "Expected error response but got something else")
+            #expect(false, "Expected error response but got something else: \(String(describing: receivedResponse))")
         }
     }
     
@@ -370,19 +412,24 @@ extension MockAppLogger: LoggerProvider {}
         
         let data = try! JSONSerialization.data(withJSONObject: interactAction)
         
+        // Use a semaphore for synchronization
+        let semaphore = DispatchSemaphore(value: 0)
+        
         var receivedResponse: Encodable?
         handler.handleMessage(data, from: "test-agent") { response in
             receivedResponse = response
+            semaphore.signal()
         }
         
-        // Wait for processing
-        try! await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        // Wait for the completion handler with a timeout
+        let result = semaphore.wait(timeout: .now() + 1.0)
+        #expect(result == .success, "Timed out waiting for response")
         
         // Verify not-implemented error response
         if let errorResponse = receivedResponse as? Observation.ErrorResponse {
             #expect(errorResponse.error.contains("Interact action not yet implemented"))
         } else {
-            #expect(false, "Expected error response but got something else")
+            #expect(false, "Expected error response but got something else: \(String(describing: receivedResponse))")
         }
     }
 }
