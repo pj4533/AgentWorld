@@ -68,7 +68,7 @@ struct Observation: Codable {
     }
 }
 
-struct World {
+class World {
     static let size = 64
     static let surroundingsRadius = 5 // How far agents can see around them
     
@@ -84,7 +84,7 @@ struct World {
         return WorldGenerator.generateWorld()
     }
     
-    mutating func placeAgent(id: String) -> (x: Int, y: Int)? {
+    func placeAgent(id: String) -> (x: Int, y: Int)? {
         // Find a valid position (not water or mountains)
         for _ in 0..<100 { // Try up to 100 times to find a valid spot
             let x = Int.random(in: 0..<World.size)
@@ -111,7 +111,7 @@ struct World {
         return nil // Failed to find a valid position
     }
     
-    mutating func removeAgent(id: String) -> Bool {
+    func removeAgent(id: String) -> Bool {
         // Remove the agent from the agents dictionary
         if agents.removeValue(forKey: id) != nil {
             return true
@@ -141,7 +141,7 @@ struct World {
         return true
     }
     
-    mutating func moveAgent(id: String, to position: (x: Int, y: Int)) -> Bool {
+    func moveAgent(id: String, to position: (x: Int, y: Int)) -> Bool {
         // Verify the agent exists
         guard var agent = agents[id] else {
             print("⚠️ moveAgent: Agent \(id) not found in world")

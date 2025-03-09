@@ -190,8 +190,8 @@ class AgentMessageHandler {
             // Get the current position for logging before any change
             let startingPos = self.world.agents[agentId]?.position ?? (-1, -1)
             
-            // CRITICAL CHANGE: Directly modify the world instance (no copying)
-            var success = self.world.moveAgent(id: agentId, to: (x: targetX, y: targetY))
+            // World is now a class - direct instance modification, no copying needed
+            let success = self.world.moveAgent(id: agentId, to: (x: targetX, y: targetY))
             
             // After direct modification, verify the position is updated
             if success {

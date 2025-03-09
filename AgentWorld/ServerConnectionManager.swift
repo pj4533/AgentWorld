@@ -256,13 +256,10 @@ class ServerConnectionManager {
         
         // Remove agent from the world
         DispatchQueue.main.async {
-            var updatedWorld = self.world
-            let removed = updatedWorld.removeAgent(id: agentId)
+            // World is now a class, no need to create a copy
+            let removed = self.world.removeAgent(id: agentId)
             
             if removed {
-                // Update the world reference with the updated one
-                self.world = updatedWorld
-                
                 // Notify delegate about agent disconnection
                 self.delegate?.agentDidDisconnect(id: agentId)
                 self.logger.info("Agent \(agentId) successfully removed from world")
