@@ -8,7 +8,6 @@
 import Foundation
 import Testing
 import Network
-import XCTest
 @testable import AgentWorld
 
 @Suite
@@ -85,13 +84,14 @@ struct ServerConnectionManagerTests {
         }
         
         // Delay slightly to allow async operations to complete
-        let expectation = XCTestExpectation(description: "Wait for connection processing")
+        let semaphore = DispatchSemaphore(value: 0)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            expectation.fulfill()
+            semaphore.signal()
         }
         
-        // Wait for the expectation to be fulfilled
-        XCTWaiter().wait(for: [expectation], timeout: 0.5)
+        // Wait for the semaphore with a timeout
+        let result = semaphore.wait(timeout: .now() + 0.5)
+        #expect(result == .success, "Timed out waiting for connection processing")
         
         // Assert
         #expect(mockFactory.lastCreatedConnection != nil)
@@ -113,11 +113,12 @@ struct ServerConnectionManagerTests {
         }
         
         // Need to wait for async agent placement
-        let expectation1 = XCTestExpectation(description: "Wait for agent placement")
+        let semaphore1 = DispatchSemaphore(value: 0)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            expectation1.fulfill()
+            semaphore1.signal()
         }
-        XCTWaiter().wait(for: [expectation1], timeout: 0.5)
+        let result1 = semaphore1.wait(timeout: .now() + 0.5)
+        #expect(result1 == .success, "Timed out waiting for agent placement")
         
         // Get agent ID (should be in delegate)
         let agentId = mockDelegate.lastConnectedAgentId
@@ -132,11 +133,12 @@ struct ServerConnectionManagerTests {
         }
         
         // Need to wait for async agent removal
-        let expectation2 = XCTestExpectation(description: "Wait for agent removal")
+        let semaphore2 = DispatchSemaphore(value: 0)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            expectation2.fulfill()
+            semaphore2.signal()
         }
-        XCTWaiter().wait(for: [expectation2], timeout: 0.5)
+        let result2 = semaphore2.wait(timeout: .now() + 0.5)
+        #expect(result2 == .success, "Timed out waiting for agent removal")
         
         // Assert
         #expect(mockDelegate.agentDidDisconnectCalled)
@@ -156,11 +158,12 @@ struct ServerConnectionManagerTests {
         }
         
         // Need to wait for async agent placement
-        let expectation1 = XCTestExpectation(description: "Wait for agent placement")
+        let semaphore1 = DispatchSemaphore(value: 0)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            expectation1.fulfill()
+            semaphore1.signal()
         }
-        XCTWaiter().wait(for: [expectation1], timeout: 0.5)
+        let result1 = semaphore1.wait(timeout: .now() + 0.5)
+        #expect(result1 == .success, "Timed out waiting for agent placement")
         
         // Reset sent data tracking
         mockFactory.lastCreatedConnection?.sentData = []
@@ -169,11 +172,12 @@ struct ServerConnectionManagerTests {
         serverManager.sendObservationsToAll(timeStep: 42)
         
         // Need to wait for async send
-        let expectation2 = XCTestExpectation(description: "Wait for observations sending")
+        let semaphore2 = DispatchSemaphore(value: 0)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            expectation2.fulfill()
+            semaphore2.signal()
         }
-        XCTWaiter().wait(for: [expectation2], timeout: 0.5)
+        let result2 = semaphore2.wait(timeout: .now() + 0.5)
+        #expect(result2 == .success, "Timed out waiting for observations sending")
         
         // Assert
         #expect(mockFactory.lastCreatedConnection?.sentData.count == 1)
@@ -190,11 +194,12 @@ struct ServerConnectionManagerTests {
         }
         
         // Need to wait for async agent placement
-        let expectation1 = XCTestExpectation(description: "Wait for agent placement")
+        let semaphore1 = DispatchSemaphore(value: 0)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            expectation1.fulfill()
+            semaphore1.signal()
         }
-        XCTWaiter().wait(for: [expectation1], timeout: 0.5)
+        let result1 = semaphore1.wait(timeout: .now() + 0.5)
+        #expect(result1 == .success, "Timed out waiting for agent placement")
         
         // Reset sent data tracking
         mockFactory.lastCreatedConnection?.sentData = []
@@ -219,11 +224,12 @@ struct ServerConnectionManagerTests {
         serverManager.handleReceivedMessage(messageData, from: agentId)
         
         // Need to wait for async processing
-        let expectation2 = XCTestExpectation(description: "Wait for message handling")
+        let semaphore2 = DispatchSemaphore(value: 0)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            expectation2.fulfill()
+            semaphore2.signal()
         }
-        XCTWaiter().wait(for: [expectation2], timeout: 0.5)
+        let result2 = semaphore2.wait(timeout: .now() + 0.5)
+        #expect(result2 == .success, "Timed out waiting for message handling")
         
         // Assert - should have received a response (pong)
         #expect(mockFactory.lastCreatedConnection?.sentData.count == 1)
@@ -240,11 +246,12 @@ struct ServerConnectionManagerTests {
         }
         
         // Need to wait for async error handling
-        let expectation = XCTestExpectation(description: "Wait for error handling")
+        let semaphore = DispatchSemaphore(value: 0)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            expectation.fulfill()
+            semaphore.signal()
         }
-        XCTWaiter().wait(for: [expectation], timeout: 0.5)
+        let result = semaphore.wait(timeout: .now() + 0.5)
+        #expect(result == .success, "Timed out waiting for error handling")
         
         // Assert - server error should be reported via delegate
         #expect(mockDelegate.serverDidEncounterErrorCalled)
