@@ -105,12 +105,14 @@ struct AgentCommand: AsyncParsableCommand {
         let currentX = response.currentLocation.x
         let currentY = response.currentLocation.y
         
-        // Find neighboring tiles that aren't water
+        // Find immediately adjacent tiles that aren't water (no diagonals)
         let walkableTiles = response.surroundings.tiles.filter { tile in
-            // Must be adjacent (including diagonals)
-            let distance = abs(tile.x - currentX) + abs(tile.y - currentY)
-            let isDiagonal = abs(tile.x - currentX) == 1 && abs(tile.y - currentY) == 1
-            let isAdjacent = (distance <= 2 && !isDiagonal) || (isDiagonal && distance == 2)
+            // Calculate Manhattan distance to check adjacency (only direct neighbors)
+            let dx = abs(tile.x - currentX)
+            let dy = abs(tile.y - currentY)
+            
+            // Only one step in one direction (up, down, left, right)
+            let isAdjacent = (dx == 1 && dy == 0) || (dx == 0 && dy == 1)
             
             // Must not be water
             let isWalkable = tile.type != .water
