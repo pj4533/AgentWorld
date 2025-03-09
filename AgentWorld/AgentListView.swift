@@ -20,10 +20,6 @@ struct AgentListView: View {
         let agents = viewModel.world.agents
         let ids = Array(agents.keys.sorted())
         
-        // Log the current agent IDs to help debug
-        let logger = AppLogger(category: "AgentListView")
-        logger.debug("AgentListView refreshed with \(ids.count) agents: \(ids)")
-        
         return ids
     }
     
