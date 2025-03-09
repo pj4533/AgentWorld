@@ -384,11 +384,8 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         
         // Update the UI with new agent positions
         DispatchQueue.main.async {
-            // Update the world reference in the renderer to reflect changes
-            self.worldRenderer = WorldRenderer(world: self.world, tileSize: self.tileSize)
-            
-            // Re-render the world with the updated agent positions
-            self.worldRenderer.renderWorld(in: self)
+            // Use worldDidUpdate which preserves the existing renderer and its texture caches
+            self.worldDidUpdate(self.world)
         }
     }
     
@@ -508,8 +505,12 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         // The world has been updated, so update the renderer and redraw
         self.world = updatedWorld
         
-        // Re-render only when needed
+        // Update the world reference in the renderer without recreating it
         DispatchQueue.main.async {
+            // Update the world reference in the renderer
+            self.worldRenderer.updateWorld(self.world)
+            
+            // Then render the world (this will only update agents, not tiles)
             self.worldRenderer.renderWorld(in: self)
         }
     }

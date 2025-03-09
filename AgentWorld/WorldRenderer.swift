@@ -8,9 +8,12 @@
 import SpriteKit
 
 class WorldRenderer {
-    private let world: World
+    // Changed from let to var to allow for updates
+    private var world: World
     private let tileSize: CGFloat
     private let tileRenderer: TileRenderer
+    // Flag to track if tiles have been rendered already
+    private var tilesRendered = false
     
     // Cache for tile nodes to prevent regeneration
     private var tileNodeCache: [[SKSpriteNode?]] = Array(repeating: Array(repeating: nil, count: World.size), count: World.size)
@@ -33,6 +36,14 @@ class WorldRenderer {
         // Reset container nodes
         tileContainer = nil
         agentContainer = nil
+        
+        // Reset the tiles rendered flag
+        tilesRendered = false
+    }
+    
+    /// Updates the world reference without recreating the renderer
+    public func updateWorld(_ newWorld: World) {
+        self.world = newWorld
     }
     
     // Container nodes to organize the scene
@@ -58,9 +69,10 @@ class WorldRenderer {
         // Clear only the agent container since agents can move
         agentContainer?.removeAllChildren()
         
-        // Only render tiles if this is the first time (they don't change)
-        if tileContainer?.children.count == 0 {
+        // Only render tiles if we haven't rendered them before
+        if !tilesRendered {
             renderTiles(in: scene)
+            tilesRendered = true
         }
         
         // Always render agents (they can move)
