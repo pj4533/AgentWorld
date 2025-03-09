@@ -29,11 +29,46 @@ class WorldRenderer {
     public func clearTileCache() {
         tileNodeCache = Array(repeating: Array(repeating: nil, count: World.size), count: World.size)
         agentNodeCache = [:]
+        
+        // Reset container nodes
+        tileContainer = nil
+        agentContainer = nil
     }
     
+    // Container nodes to organize the scene
+    private var tileContainer: SKNode?
+    private var agentContainer: SKNode?
+    
     func renderWorld(in scene: SKScene) {
-        // Remove existing tiles if any
-        scene.removeAllChildren()
+        // Only initialize containers once
+        if tileContainer == nil {
+            tileContainer = SKNode()
+            tileContainer?.name = "tileContainer"
+            tileContainer?.zPosition = 0
+            scene.addChild(tileContainer!)
+        }
+        
+        if agentContainer == nil {
+            agentContainer = SKNode()
+            agentContainer?.name = "agentContainer"
+            agentContainer?.zPosition = 10
+            scene.addChild(agentContainer!)
+        }
+        
+        // Clear only the agent container since agents can move
+        agentContainer?.removeAllChildren()
+        
+        // Only render tiles if this is the first time (they don't change)
+        if tileContainer?.children.count == 0 {
+            renderTiles(in: scene)
+        }
+        
+        // Always render agents (they can move)
+        renderAgents(in: scene)
+    }
+    
+    private func renderTiles(in scene: SKScene) {
+        guard let tileContainer = tileContainer else { return }
         
         // Create and place tile sprites
         for y in 0..<World.size {
@@ -55,25 +90,25 @@ class WorldRenderer {
                     y: scene.size.height - (CGFloat(y) * tileSize + tileSize/2) // Flip Y-axis
                 )
                 
-                // Set zPosition to ensure tiles are at the bottom
-                tileNode.zPosition = 0
+                // Name the node for identification
+                tileNode.name = "tile-\(x)-\(y)"
                 
-                // Add to scene
-                scene.addChild(tileNode)
+                // Add to the tile container
+                tileContainer.addChild(tileNode)
             }
         }
-        
-        // Render agents
-        renderAgents(in: scene)
     }
     
     private func renderAgents(in scene: SKScene) {
+        guard let agentContainer = agentContainer else { return }
+        
         // First, log debug info about all agents being rendered
         print("🤖 Rendering \(world.agents.count) agents in the world")
         
         // Render all agents in the world
         for (agentID, agentInfo) in world.agents {
             print("🤖 Rendering agent \(agentID) at position (\(agentInfo.position.x), \(agentInfo.position.y))")
+            
             // Get cached node or create a new one
             let agentNode: SKSpriteNode
             if let cachedNode = agentNodeCache[agentID] {
@@ -88,10 +123,24 @@ class WorldRenderer {
             
             // Position the agent
             let pos = agentInfo.position
-            agentNode.position = CGPoint(
+            let newPosition = CGPoint(
                 x: CGFloat(pos.x) * tileSize + tileSize/2,
                 y: scene.size.height - (CGFloat(pos.y) * tileSize + tileSize/2) // Flip Y-axis
             )
+            
+            // Check if this is an existing agent that moved
+            let isExistingAgent = agentNodeCache[agentID] == agentNode
+            
+            // If the agent existed before and changed position, animate the movement
+            if isExistingAgent && agentNode.position != newPosition {
+                // Create a smooth move action for agent movement
+                let moveAction = SKAction.move(to: newPosition, duration: 0.3)
+                moveAction.timingMode = .easeInEaseOut
+                agentNode.run(moveAction)
+            } else {
+                // Otherwise just set position directly
+                agentNode.position = newPosition
+            }
             
             // Set zPosition to ensure agents are above tiles
             agentNode.zPosition = 10
@@ -107,8 +156,8 @@ class WorldRenderer {
             // Make sure the agent is visible even if it's at the edge of the screen
             agentNode.setScale(1.0) // Reset scale in case it was animated
             
-            // Add to scene with a brief attention-getting animation
-            scene.addChild(agentNode)
+            // Add to the agent container
+            agentContainer.addChild(agentNode)
             
             // Add a brief highlight animation when first added
             let highlightAction = SKAction.sequence([

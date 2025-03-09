@@ -472,6 +472,13 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         serverConnectionManager = ServerConnectionManager(world: world)
         serverConnectionManager.delegate = self
         
+        // Remove all children from the scene before creating a new renderer
+        self.removeAllChildren()
+        
+        // Re-add the camera
+        self.addChild(cameraNode)
+        self.camera = cameraNode
+        
         // Create a new WorldRenderer with a fresh cache
         worldRenderer = WorldRenderer(world: world, tileSize: tileSize)
         worldRenderer.renderWorld(in: self)
