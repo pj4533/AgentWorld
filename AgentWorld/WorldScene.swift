@@ -551,21 +551,36 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
     // MARK: - ServerConnectionManagerDelegate
     
     func worldDidUpdate(_ updatedWorld: World) {
-        // Log agent positions in the updated world for debugging
+        // Log agent positions in the updated world for debugging (safely)
         logger.info("🔄 worldDidUpdate called - Agents in updated world:")
-        for (agentId, agent) in updatedWorld.agents {
-            logger.info("Agent \(agentId) at (\(agent.position.x), \(agent.position.y))")
+        
+        // CRITICAL FIX: Prevent crash when updatedWorld.agents is nil or empty
+        if !updatedWorld.agents.isEmpty {
+            let agentCount = updatedWorld.agents.count
+            logger.info("Found \(agentCount) agents in updated world")
+            
+            // Use safe iteration in case the collection changes
+            let agents = updatedWorld.agents // Create a local copy
+            for (agentId, agent) in agents {
+                // Use direct string interpolation to avoid potential formatter issues
+                logger.info("Agent \(agentId) at position: \(agent.position.x), \(agent.position.y)")
+            }
+        } else {
+            logger.info("No agents in updated world")
         }
         
-        // Update our local world reference
-        self.world = updatedWorld
-        
-        // CRITICAL FIX: Make sure ServerConnectionManager also has the updated world
-        // This ensures both components stay in sync
-        serverConnectionManager.updateWorld(updatedWorld)
-        
-        // Update the world reference in the renderer without recreating it
-        DispatchQueue.main.async {
+        // Update our local world reference - always on main thread
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            // Update our local world reference
+            self.world = updatedWorld
+            
+            // CRITICAL FIX: Make sure ServerConnectionManager also has the updated world
+            // This ensures both components stay in sync (and handle on main thread)
+            self.serverConnectionManager.updateWorld(updatedWorld)
+            
+            // Update the world reference in the renderer without recreating it
             // Update the world reference in the renderer
             self.worldRenderer.updateWorld(self.world)
             
