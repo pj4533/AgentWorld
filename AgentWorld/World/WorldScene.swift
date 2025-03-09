@@ -99,7 +99,23 @@ class WorldScene: SKScene, InputHandlerDelegate, WorldSceneDelegate {
     // MARK: - InputHandlerDelegate
     
     func inputHandler(_ handler: InputHandler, didClickAtPosition position: CGPoint) {
-        // Handle click events from input handler
-        // This could be expanded for handling different types of interactions
+        // Convert the position to tile coordinates
+        let (tileX, tileY) = handler.convertToWorldPosition(scenePosition: position, tileSize: tileSize, in: self)
+        
+        // Check if coordinates are valid
+        if tileX >= 0 && tileX < World.size && tileY >= 0 && tileY < World.size {
+            let terrainType = world.tiles[tileY][tileX]
+            
+            // Log the click and terrain information
+            logger.info("Clicked on \(terrainType.description) tile at coordinates: (\(tileX), \(tileY))")
+            
+            // Check if there's an agent at this position
+            for (id, agent) in world.agents {
+                if agent.position.x == tileX && agent.position.y == tileY {
+                    logger.info("Agent \(id) is at this location")
+                    break
+                }
+            }
+        }
     }
 }

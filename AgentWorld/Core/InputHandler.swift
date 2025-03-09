@@ -34,7 +34,8 @@ class InputHandler {
         
         // Convert scene position to tile coordinates
         let (tileX, tileY) = convertToWorldPosition(scenePosition: location, tileSize: tileSize, in: scene)
-        logger.debug("Tap at tile coordinates: (\(tileX), \(tileY))")
+        
+        // No need to log here as WorldScene will handle detailed logging
         
         // Inform delegate of click position
         delegate?.inputHandler(self, didClickAtPosition: location)
