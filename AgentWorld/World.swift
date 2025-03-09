@@ -144,11 +144,22 @@ struct World {
     mutating func moveAgent(id: String, to position: (x: Int, y: Int)) -> Bool {
         // Verify the agent exists
         guard var agent = agents[id] else {
+            print("⚠️ moveAgent: Agent \(id) not found in world")
             return false
         }
         
-        // Check if the position is valid
+        // Log original position for debugging
+        print("🔍 moveAgent: Agent \(id) current position: (\(agent.position.x), \(agent.position.y))")
+        
+        // Check if the position is in bounds
+        guard position.x >= 0 && position.x < World.size && position.y >= 0 && position.y < World.size else {
+            print("⚠️ moveAgent: Target position (\(position.x), \(position.y)) is out of bounds")
+            return false
+        }
+        
+        // Check if the position is valid (not water/mountains, not occupied)
         if !isValidForAgent(x: position.x, y: position.y) {
+            print("⚠️ moveAgent: Target position (\(position.x), \(position.y)) is not valid for agent")
             return false
         }
         
@@ -159,12 +170,22 @@ struct World {
         
         // Ensure the agent only moves one tile in any direction (including diagonal)
         if dx > 1 || dy > 1 {
+            print("⚠️ moveAgent: Move distance too large - dx: \(dx), dy: \(dy)")
             return false
         }
         
-        // Update agent position
+        // Update agent position with the new coordinates
         agent.position = position
         agents[id] = agent
+        
+        // Verify the update was successful
+        if let updatedAgent = agents[id] {
+            if updatedAgent.position.x == position.x && updatedAgent.position.y == position.y {
+                print("✅ moveAgent: Successfully updated agent \(id) position to (\(position.x), \(position.y))")
+            } else {
+                print("⚠️ moveAgent: Failed to update agent position! Current: (\(updatedAgent.position.x), \(updatedAgent.position.y)), Target: (\(position.x), \(position.y))")
+            }
+        }
         
         return true
     }
@@ -211,6 +232,17 @@ struct World {
             return nil
         }
         
+        // Verify agent's position is valid before proceeding
+        let pos = agent.position
+        guard pos.x >= 0 && pos.x < World.size && pos.y >= 0 && pos.y < World.size else {
+            print("⚠️ Warning: Agent \(agentID) has invalid position (\(pos.x), \(pos.y))")
+            return nil
+        }
+        
+        // Get the actual tile type at the agent's position
+        let currentTileType = tiles[pos.y][pos.x]
+        
+        // Get surrounding tiles
         let surroundingTiles = surroundings(for: agentID)
         
         // Convert to observation format
@@ -235,9 +267,7 @@ struct World {
             )
         }
         
-        // Current agent position and tile type
-        let pos = agent.position
-        let currentTileType = tiles[pos.y][pos.x]
+        print("🔍 Creating observation for agent \(agentID) at position (\(pos.x), \(pos.y)) on \(currentTileType.description) tile")
         
         return Observation(
             agent_id: agentID,

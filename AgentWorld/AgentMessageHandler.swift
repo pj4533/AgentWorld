@@ -178,28 +178,73 @@ class AgentMessageHandler {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
-            let success = self.world.moveAgent(id: agentId, to: (x: targetX, y: targetY))
+            // Log the agent's current position before movement
+            if let agentInfo = self.world.agents[agentId] {
+                self.logger.info("Agent \(agentId) current position before move: (\(agentInfo.position.x), \(agentInfo.position.y))")
+            } else {
+                self.logger.error("⚠️ Agent \(agentId) not found in world before move")
+                self.sendError(to: agentId, message: "Agent not found in world", completion: completion)
+                return
+            }
             
+            // Get the current position for logging before any change
+            let startingPos = self.world.agents[agentId]?.position ?? (-1, -1)
+            
+            // CRITICAL CHANGE: Directly modify the world instance (no copying)
+            var success = self.world.moveAgent(id: agentId, to: (x: targetX, y: targetY))
+            
+            // After direct modification, verify the position is updated
             if success {
-                self.logger.info("Agent \(agentId) moved to (\(targetX), \(targetY))")
+                // Verify the agent's position was actually updated
+                guard let agent = self.world.agents[agentId],
+                      agent.position.x == targetX && agent.position.y == targetY else {
+                    self.logger.error("⚠️ Agent position not updated correctly after move operation")
+                    self.logger.error("⚠️ Move was from \(startingPos) to target (\(targetX), \(targetY))")
+                    self.sendError(to: agentId, message: "Internal error updating agent position", completion: completion)
+                    return
+                }
+                
+                // Log the successful direct update
+                self.logger.info("⚡ DIRECT UPDATE: Agent \(agentId) moved from \(startingPos) to (\(targetX), \(targetY))")
+                
+                self.logger.info("✅ Agent \(agentId) moved to (\(targetX), \(targetY))")
+                
+                // Verify world state consistency
+                if let verifiedAgent = self.world.agents[agentId] {
+                    if verifiedAgent.position.x != targetX || verifiedAgent.position.y != targetY {
+                        self.logger.error("⚠️ INCONSISTENCY: Agent \(agentId) position in world (\(verifiedAgent.position.x), \(verifiedAgent.position.y)) doesn't match target (\(targetX), \(targetY))")
+                    } else {
+                        self.logger.info("✓ Verified agent position is consistent: (\(verifiedAgent.position.x), \(verifiedAgent.position.y))")
+                    }
+                }
                 
                 // Notify the delegate that the world has been updated
                 self.delegate?.worldDidUpdate(self.world)
                 
                 // Publish a notification that agents have changed
-                DispatchQueue.main.async {
-                    NotificationCenter.default.post(name: .agentsDidChange, object: self.world)
+                NotificationCenter.default.post(name: .agentsDidChange, object: self.world)
+                
+                // Get current tile type at new position for debugging
+                let tileType = self.world.tiles[targetY][targetX]
+                self.logger.info("Agent \(agentId) is now on \(tileType.description) tile")
+                
+                // Create additional verification observation
+                if let verificationObs = self.world.createObservation(for: agentId, timeStep: 0) {
+                    self.logger.info("✓ Verification observation shows agent at (\(verificationObs.currentLocation.x), \(verificationObs.currentLocation.y)) on \(verificationObs.currentLocation.type) tile")
                 }
                 
-                // Notify the agent of success with a success response, NOT an observation
-                // Observations should only be sent at timestep changes
+                // Notify the agent of success with a success response and include current tile type
                 let successResponse = SuccessResponse(
                     message: "Move successful",
-                    data: ["x": "\(targetX)", "y": "\(targetY)"]
+                    data: [
+                        "x": "\(targetX)", 
+                        "y": "\(targetY)",
+                        "currentTileType": tileType.description
+                    ]
                 )
                 completion(successResponse)
             } else {
-                self.logger.info("Agent \(agentId) failed to move to (\(targetX), \(targetY))")
+                self.logger.info("❌ Agent \(agentId) failed to move to (\(targetX), \(targetY))")
                 self.sendError(to: agentId, message: "Invalid move - tile is not passable or is occupied", completion: completion)
             }
         }
