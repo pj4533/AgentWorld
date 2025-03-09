@@ -84,3 +84,9 @@ struct AgentMessageParser {
         return nil
     }
 }
+
+// MARK: - Notifications
+
+extension Notification.Name {
+    static let agentsDidChange = Notification.Name("agentsDidChange")
+}

@@ -31,14 +31,22 @@ struct ContentView: View {
             }
             .padding(.top)
             
-            // Main world view
-            SpriteKitContainer(
-                shouldRegenerateWorld: $viewModel.shouldRegenerateWorld,
-                currentTimeStep: $viewModel.currentTimeStep,
-                viewModel: viewModel
-            )
-            .frame(width: 640, height: 640)
-            .aspectRatio(1.0, contentMode: .fit)
+            // Main content with agent list and world view
+            HStack(alignment: .top, spacing: 0) {
+                // Agent list on the left
+                AgentListView(viewModel: viewModel)
+                    .frame(width: 200)
+                    .padding(.trailing, 8)
+                
+                // Main world view
+                SpriteKitContainer(
+                    shouldRegenerateWorld: $viewModel.shouldRegenerateWorld,
+                    currentTimeStep: $viewModel.currentTimeStep,
+                    viewModel: viewModel
+                )
+                .frame(width: 640, height: 640)
+                .aspectRatio(1.0, contentMode: .fit)
+            }
             
             // Navigation instructions
             HStack(spacing: 16) {
@@ -48,6 +56,7 @@ struct ContentView: View {
                     Text("• Scroll wheel to zoom")
                     Text("• +/- keys to zoom in/out")
                     Text("• 0 key to reset zoom")
+                    Text("• Click agent in list to focus")
                 }
                 .font(.caption)
                 .foregroundColor(.secondary)

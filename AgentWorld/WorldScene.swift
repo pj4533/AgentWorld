@@ -9,7 +9,8 @@ import SpriteKit
 import OSLog
 
 class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate {
-    private var world: World!
+    // Change from private to internal access level to allow synchronization
+    internal var world: World!
     private var tileSize: CGFloat = 10
     private var worldRenderer: WorldRenderer!
     private var inputHandler: InputHandler!
@@ -374,6 +375,29 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         return currentTimeStep
     }
     
+    /// Focus the camera on a specific agent
+    func focusOnAgent(id: String) {
+        // Get the agent info
+        guard let agent = world.agents[id] else {
+            logger.error("Cannot focus on agent \(id): agent not found")
+            return
+        }
+        
+        // Calculate world position for this agent
+        let worldX = CGFloat(agent.position.x) * tileSize + (tileSize / 2)
+        let worldY = CGFloat(agent.position.y) * tileSize + (tileSize / 2)
+        
+        // Set target zoom (zoom in a bit)
+        targetZoom = 3.0
+        hasTargetZoom = true
+        
+        // Set target position
+        cameraTargetPosition = CGPoint(x: worldX, y: worldY)
+        hasTargetPosition = true
+        
+        logger.info("Focusing on agent \(id) at position (\(agent.position.x), \(agent.position.y))")
+    }
+    
     func regenerateWorld() {
         // Stop the current server first
         serverConnectionManager.stopServer()
@@ -403,6 +427,9 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         hasTargetPosition = true
         
         logger.debug("Camera reset: position=\(cameraNode.position), zoom=\(currentZoom)")
+        
+        // Notify that agents have changed (they've all been removed in the new world)
+        NotificationCenter.default.post(name: .agentsDidChange, object: nil)
     }
     
     // MARK: - ServerConnectionManagerDelegate
@@ -437,6 +464,10 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
             for (agentId, agent) in self.world.agents {
                 self.logger.info("After render: Agent \(agentId) in world at position (\(agent.position.x), \(agent.position.y))")
             }
+            
+            // More aggressive notification - set this as the notification object so observers can access it
+            self.logger.debug("🔔 Publishing agentsDidChange notification")
+            NotificationCenter.default.post(name: .agentsDidChange, object: self.world)
         }
     }
     
@@ -455,6 +486,10 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
             } else {
                 self.logger.error("Agent \(id) still present in world after disconnect!")
             }
+            
+            // More aggressive notification with world object
+            self.logger.debug("🔔 Publishing agentsDidChange notification for disconnect")
+            NotificationCenter.default.post(name: .agentsDidChange, object: self.world)
         }
     }
     

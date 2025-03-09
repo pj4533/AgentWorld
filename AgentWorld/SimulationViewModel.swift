@@ -8,6 +8,7 @@
 import Foundation
 import Combine
 import OSLog
+import AppKit
 
 class SimulationViewModel: ObservableObject {
     @Published var currentTimeStep: Int = 0
@@ -16,10 +17,13 @@ class SimulationViewModel: ObservableObject {
     @Published var timeStepInterval: TimeInterval = 60 // seconds between time steps
     @Published var progressToNextStep: Double = 0.0 // Progress indicator (0.0 - 1.0)
     @Published var world: World
+    @Published var selectedAgentId: String? = nil
+    @Published var agentListRefreshTrigger = false  // Used to trigger SwiftUI refreshes
     
     private var simulationTimer: Task<Void, Never>? = nil
     private var progressTimer: Timer? = nil
     private var lastStepTime: Date? = nil
+    private var agentChangeObserver: NSObjectProtocol?
     
     private let minTimeStepInterval: TimeInterval = 5 // minimum interval in seconds
     private let maxTimeStepInterval: TimeInterval = 300 // maximum interval in seconds
@@ -88,12 +92,36 @@ class SimulationViewModel: ObservableObject {
     func cleanup() {
         cancelSimulation()
         stopProgressTimer()
+        
+        // Remove the agent change observer
+        if let observer = agentChangeObserver {
+            NotificationCenter.default.removeObserver(observer)
+            agentChangeObserver = nil
+        }
     }
     
     func initialize() {
         // Initialize the timer if simulation is already running
         if isSimulationRunning {
             startProgressTimer()
+        }
+        
+        // Listen for agent connection/disconnection events
+        agentChangeObserver = NotificationCenter.default.addObserver(
+            forName: .agentsDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self else { return }
+            
+            // Update our world reference if provided
+            if let updatedWorld = notification.object as? World {
+                self.world = updatedWorld
+            }
+            
+            // Toggle the refresh trigger to force SwiftUI list to refresh
+            self.agentListRefreshTrigger.toggle()
+            self.logger.debug("🔄 Agent list refresh triggered by notification - now have \(self.world.agents.count) agents")
         }
     }
     

@@ -92,6 +92,28 @@ struct SpriteKitContainer: NSViewRepresentable {
             logger.debug("Updating scene to time step: \(currentTimeStep)")
             scene.updateToTimeStep(currentTimeStep)
         }
+        
+        // Add a debugging hook to sync the viewModel's world with the scene's world
+        // This helps ensure the agent list is always up-to-date
+        DispatchQueue.main.async {
+            if !self.viewModel.world.agents.keys.sorted().elementsEqual(scene.world.agents.keys.sorted()) {
+                self.logger.debug("👉 Syncing ViewModel world with scene world - \(scene.world.agents.count) agents")
+                self.viewModel.world = scene.world
+                // Force the agent list to refresh
+                self.viewModel.agentListRefreshTrigger.toggle()
+            }
+        }
+        
+        // Handle focusing on a selected agent
+        if let selectedAgentId = viewModel.selectedAgentId {
+            // Focus on the agent
+            scene.focusOnAgent(id: selectedAgentId)
+            
+            // Clear the selection to avoid repeated focusing
+            DispatchQueue.main.async {
+                viewModel.selectedAgentId = nil
+            }
+        }
     }
     
     func makeCoordinator() -> Coordinator {
