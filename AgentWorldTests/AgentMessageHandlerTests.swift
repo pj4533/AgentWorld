@@ -134,7 +134,7 @@ extension MockAppLogger: LoggerProvider {}
     }
     
     // Test handling action message - move
-    @Test func testHandleMoveAction() async {
+    @Test func testHandleMoveAction() throws {
         let world = createTestWorld()
         let handler = AgentMessageHandler(world: world)
         
@@ -146,15 +146,17 @@ extension MockAppLogger: LoggerProvider {}
         
         let data = try! JSONSerialization.data(withJSONObject: moveAction)
         
-        // Use async/await to wait for the completion handler
+        // Use a semaphore for synchronization
+        let semaphore = DispatchSemaphore(value: 0)
         var receivedResponse: Encodable?
         
         handler.handleMessage(data, from: "test-agent") { response in
             receivedResponse = response
+            semaphore.signal()
         }
         
-        // Short wait to allow the async code to complete
-        try! await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        // Wait for the completion handler
+        _ = semaphore.wait(timeout: .now() + 1.0)
         
         // Verify the agent moved
         #expect(handler.world.agents["test-agent"]?.position.x == 6)
@@ -204,7 +206,7 @@ extension MockAppLogger: LoggerProvider {}
     }
     
     // Test handling query message - observation
-    @Test func testHandleObservationQuery() async {
+    @Test func testHandleObservationQuery() throws {
         let world = createTestWorld()
         let handler = AgentMessageHandler(world: world)
         
@@ -216,13 +218,17 @@ extension MockAppLogger: LoggerProvider {}
         
         let data = try! JSONSerialization.data(withJSONObject: queryMessage)
         
+        // Use a semaphore for synchronization
+        let semaphore = DispatchSemaphore(value: 0)
         var receivedResponse: Encodable?
+        
         handler.handleMessage(data, from: "test-agent") { response in
             receivedResponse = response
+            semaphore.signal()
         }
         
-        // Wait for processing
-        try! await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        // Wait for the completion handler
+        _ = semaphore.wait(timeout: .now() + 1.0)
         
         // Verify observation response
         if let observation = receivedResponse as? Observation {

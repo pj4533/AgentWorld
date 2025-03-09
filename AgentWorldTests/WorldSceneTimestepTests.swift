@@ -56,12 +56,14 @@ class MockServerConnectionManager: ServerConnectionManager {
     }
     
     // Test that simulateOneTimeStep correctly synchronizes world state before sending observations
-    @Test func testSimulateTimeStepSynchronizesWorld() async throws {
+    @Test func testSimulateTimeStepSynchronizesWorld() throws {
         let world = createTestWorld()
+        
+        // Create a scene with specific size to match what would be set in didMove
+        let scene = WorldScene(size: CGSize(width: 640, height: 640))
         
         // Mock objects
         let mockServer = MockServerConnectionManager(world: world)
-        let scene = WorldScene() // Create a real scene
         
         // Direct access to server connection manager now that it's internal
         scene.serverConnectionManager = mockServer
@@ -71,6 +73,25 @@ class MockServerConnectionManager: ServerConnectionManager {
         
         // Initialize the worldRenderer for testing (since didMove: isn't called in tests)
         scene.worldRenderer = WorldRenderer(world: world, tileSize: scene.tileSize)
+        
+        // Initialize cameraNode with proper position for test environment
+        let cameraNode = SKCameraNode()
+        let worldWidth = CGFloat(World.size) * scene.tileSize
+        let worldHeight = CGFloat(World.size) * scene.tileSize
+        cameraNode.position = CGPoint(x: worldWidth / 2, y: worldHeight / 2)
+        scene.addChild(cameraNode)
+        scene.camera = cameraNode
+        
+        // Setup tile and agent containers for the WorldRenderer to use
+        let tileContainer = SKNode()
+        tileContainer.name = "tileContainer"
+        tileContainer.zPosition = 0
+        scene.addChild(tileContainer)
+        
+        let agentContainer = SKNode()
+        agentContainer.name = "agentContainer"
+        agentContainer.zPosition = 10
+        scene.addChild(agentContainer)
         
         // Manually update the agent position in the server's world to simulate a move
         // This is what would happen after a successful move command
@@ -92,6 +113,7 @@ class MockServerConnectionManager: ServerConnectionManager {
         // Now simulate a time step - this would normally happen when the time steps forward
         // in the app, but we're calling it directly in the test
         scene.updateToTimeStep(1)
+        
         
         // Verify the mock server's sendObservationsToAll was called
         #expect(mockServer.sendObservationsCalledWith == 1)

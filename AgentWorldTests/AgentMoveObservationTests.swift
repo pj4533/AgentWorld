@@ -66,7 +66,7 @@ class MockConnectionDelegate: ServerConnectionManagerDelegate {
     }
     
     // Test to verify the full flow from connection to move to observation
-    @Test func testAgentMoveFollowedByObservation() async throws {
+    @Test func testAgentMoveFollowedByObservation() throws {
         // Create our test world
         var world = createTestWorld()
         
@@ -98,15 +98,17 @@ class MockConnectionDelegate: ServerConnectionManagerDelegate {
         ]
         let moveData = try JSONSerialization.data(withJSONObject: moveAction)
         
-        // Wait for the completion handler with expectation
+        // Wait for the completion handler with a semaphore
+        let semaphore = DispatchSemaphore(value: 0)
         var moveResponse: Encodable?
         messageHandler.handleMessage(moveData, from: agentID) { response in
             moveResponse = response
             print("🧪 TEST: Received move response")
+            semaphore.signal()
         }
         
-        // Wait for async processing
-        try await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+        // Wait for the completion handler
+        _ = semaphore.wait(timeout: .now() + 1.0)
         
         // 2. Verify the agent moved in the message handler's world
         print("🧪 TEST: Checking agent position in message handler")
