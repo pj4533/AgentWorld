@@ -1,11 +1,5 @@
 # AgentWorld Development Guidelines
 
-## Build & Test Commands
-- Build: `Cmd+B` in Xcode
-- Run app: `Cmd+R` in Xcode
-- Run all tests: `Cmd+U` in Xcode
-- Run single test: Select test method and click test diamond icon in gutter or use Product > Perform Action > Test
-
 ### Command Line Build & Test Commands
 - Build from command line: `xcodebuild -project AgentWorld.xcodeproj -scheme AgentWorld -destination 'platform=macOS' build`
 - Run tests from command line: `xcodebuild test -project AgentWorld.xcodeproj -scheme AgentWorld -destination 'platform=macOS'`
@@ -46,3 +40,6 @@ Refer to these specs if you are confused about goals:
 
 Refer to this documentation when adding tests:
 - SwiftTesting documentation: `swifttesting_documentation.md`
+
+- Never alter non-test code for special cases during testing. 
+- Keep all the test code encapsulated in test code only
