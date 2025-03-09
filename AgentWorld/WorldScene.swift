@@ -415,8 +415,9 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         hasTargetZoom = true
         
         // Calculate world position for this agent - center precisely
+        // CRITICAL: Must flip Y-axis to match how WorldRenderer positions agents
         let worldX = CGFloat(agent.position.x) * tileSize + (tileSize / 2)
-        let worldY = CGFloat(agent.position.y) * tileSize + (tileSize / 2)
+        let worldY = self.size.height - (CGFloat(agent.position.y) * tileSize + (tileSize / 2))
         
         // Force immediate position update to center exactly on the agent
         cameraTargetPosition = CGPoint(x: worldX, y: worldY)
@@ -425,10 +426,19 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         // First, cancel any existing camera constraints to ensure our new target is prioritized
         self.cameraNode.constraints = nil
         
-        // Apply an immediate position change to avoid delay
-        let moveAction = SKAction.move(to: CGPoint(x: worldX, y: worldY), duration: 0.5)
+        // Set position directly first for immediate effect
+        cameraNode.position = CGPoint(x: worldX, y: worldY)
+        
+        // Then apply a finishing movement with smooth easing
+        let moveAction = SKAction.sequence([
+            SKAction.wait(forDuration: 0.01), // Tiny delay to ensure direct position is applied first
+            SKAction.move(to: CGPoint(x: worldX, y: worldY), duration: 0.3)
+        ])
         moveAction.timingMode = .easeOut
         cameraNode.run(moveAction)
+        
+        // Log that we're setting camera position
+        logger.info("Setting camera to position: (\(worldX), \(worldY))")
         
         // Make another target update after a short delay to ensure centering
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
@@ -443,7 +453,11 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
                 self?.isTrackingAgent = false
             }
             
-            self.logger.info("Focusing on agent \(id) at position (\(agent.position.x), \(agent.position.y)) - world coordinates: (\(worldX), \(worldY))")
+            // Log detailed coordinate information for debugging
+            self.logger.info("Focusing on agent \(id) at position (\(agent.position.x), \(agent.position.y))")
+            self.logger.info("Scene size: \(self.size.width) x \(self.size.height)")
+            self.logger.info("World coordinates (after Y-flip): (\(worldX), \(worldY))")
+            self.logger.info("Camera now at position: \(self.cameraNode.position)")
         }
     }
     
