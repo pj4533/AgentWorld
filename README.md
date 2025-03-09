@@ -16,7 +16,7 @@ AgentWorld consists of two main components:
 
 ### 🖥️ Server Application
 
-The macOS application acts as the simulation environment and server:
+The macOS application (this repo) acts as the simulation environment and server:
 
 - Generates and renders the world
 - Manages the simulation lifecycle
@@ -25,7 +25,7 @@ The macOS application acts as the simulation environment and server:
 
 ### 🤖 Agent CLI
 
-The command-line interface for agents to connect to the simulation:
+The command-line interface for agents to connect to the simulation. Repo is [here](https://github.com/pj4533/agent-cli).
 
 - Swift Package Manager-based CLI tool
 - Network connectivity to the server
@@ -40,19 +40,6 @@ The command-line interface for agents to connect to the simulation:
 - Swift 6.0+ for agent development
 - Xcode 15+ for development
 
-### Building the Server
-
-1. Open `AgentWorld.xcodeproj` in Xcode
-2. Build and run the project (⌘+R)
-
-### Building the Agent CLI
-
-```bash
-cd agent
-swift build
-swift run
-```
-
 ## 🧪 Testing
 
 Run the test suite to verify functionality:
@@ -64,9 +51,7 @@ xcodebuild test -project AgentWorld.xcodeproj -scheme AgentWorld -destination 'p
 ## 📖 Documentation
 
 See specification documents for detailed information:
+
 - [Server Specification](agentworld_server_spec.md)
 - [Agent Specification](agentworld_agent_spec.md)
 
-## 🔮 Future Plans
-
-- 🧠 Advanced AI agent capabilities
