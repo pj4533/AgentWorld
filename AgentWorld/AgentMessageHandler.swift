@@ -218,11 +218,18 @@ class AgentMessageHandler {
                     }
                 }
                 
-                // Notify the delegate that the world has been updated
-                self.delegate?.worldDidUpdate(self.world)
+                // Notify the delegate that an agent has moved (USE DIFFERENT METHOD)
+                // CRITICAL FIX: Use agentDidMove instead of worldDidUpdate to avoid circular updates
+                if let delegate = self.delegate as? WorldSceneDelegate {
+                    delegate.agentDidMove(id: agentId, to: (x: targetX, y: targetY))
+                } else {
+                    // Only if not our custom delegate, use the standard method
+                    self.delegate?.worldDidUpdate(self.world)
+                }
                 
-                // Publish a notification that agents have changed
-                NotificationCenter.default.post(name: .agentsDidChange, object: self.world)
+                // Publish a notification that agents have changed, but don't include world reference
+                // to avoid potential circular references
+                NotificationCenter.default.post(name: .agentsDidChange, object: nil)
                 
                 // Get current tile type at new position for debugging
                 let tileType = self.world.tiles[targetY][targetX]

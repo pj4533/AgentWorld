@@ -8,7 +8,12 @@
 import SpriteKit
 import OSLog
 
-class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate {
+// Define a new protocol for more specific WorldScene updates
+protocol WorldSceneDelegate: ServerConnectionManagerDelegate {
+    func agentDidMove(id: String, to position: (x: Int, y: Int))
+}
+
+class WorldScene: SKScene, InputHandlerDelegate, WorldSceneDelegate {
     // Change from private to internal access level to allow synchronization
     internal var world: World!
     internal var tileSize: CGFloat = 10
@@ -395,10 +400,9 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         // to ensure we have the most up-to-date agent positions
         self.world = authoritative
         
-        // CRITICAL FIX #3: Since we'll be directly using the server's world,
-        // make sure to tell the server to use our reference too (this ensures both components
-        // have the exact same world reference)
-        self.serverConnectionManager.updateWorld(self.world)
+        // CRITICAL FIX #3: We're directly using the server's world,
+        // so we don't need to update the server's world reference again
+        // DO NOT call updateWorld here to avoid circular references
         
         // Now check our local world state to verify it matches
         logger.info("🌍 After sync - Agent positions in WorldScene:")
@@ -576,9 +580,8 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
             // Update our local world reference
             self.world = updatedWorld
             
-            // CRITICAL FIX: Make sure ServerConnectionManager also has the updated world
-            // This ensures both components stay in sync (and handle on main thread)
-            self.serverConnectionManager.updateWorld(updatedWorld)
+            // DO NOT update ServerConnectionManager's world here to avoid circular updates
+            // The ServerConnectionManager already has this world reference
             
             // Update the world reference in the renderer without recreating it
             // Update the world reference in the renderer
@@ -640,5 +643,21 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
     
     func serverDidEncounterError(_ error: Error) {
         logger.error("Server error: \(error.localizedDescription)")
+    }
+    
+    // MARK: - WorldSceneDelegate
+    
+    func agentDidMove(id: String, to position: (x: Int, y: Int)) {
+        logger.info("🔄 agentDidMove called - Agent \(id) moved to (\(position.x), \(position.y))")
+        
+        // IMPORTANT: We don't need to update world reference here, as it was already updated
+        // in the AgentMessageHandler. Just update the renderer.
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            // Update the renderer without recreating it
+            self.worldRenderer.updateWorld(self.world)
+            self.worldRenderer.renderWorld(in: self)
+        }
     }
 }
