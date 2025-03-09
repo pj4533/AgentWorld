@@ -64,8 +64,8 @@ struct AgentCommand: AsyncParsableCommand {
                     
                     logger.debug("📨 Received response: \(response.responseType) for agent \(response.agent_id)")
                     
-                    // Only send an action if this is a timestep message
-                    if response.responseType == "timestep" {
+                    // Only send an action if this is an observation message
+                    if response.responseType == "observation" {
                         // Implement simple agent decision logic
                         let action = createAction(basedOn: response)
                         try await networkService.sendAction(action)
