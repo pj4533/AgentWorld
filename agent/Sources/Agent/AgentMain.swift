@@ -1,19 +1,13 @@
 import Foundation
 import ArgumentParser
-import OSLog
 
 // MARK: - Logger setup
-fileprivate let subsystemIdentifier = "com.agentworld.agent"
-fileprivate let logger = Logger(subsystem: subsystemIdentifier, category: "Agent")
-
-// Console logger for development - much simpler approach
-fileprivate func logToConsole(_ type: String, _ message: String) {
-    if ProcessInfo.processInfo.environment["AGENT_LOG_CONSOLE"] == "1" || 
-       ProcessInfo.processInfo.arguments.contains("--debug-logging") {
+fileprivate func log(_ message: String, verbose: Bool = false) {
+    if verbose || ProcessInfo.processInfo.environment["AGENT_VERBOSE"] == "1" {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "HH:mm:ss.SSS"
         let timestamp = dateFormatter.string(from: Date())
-        print("[\(timestamp)] [\(type)] \(message)")
+        print("[\(timestamp)] \(message)")
     }
 }
 
@@ -38,33 +32,18 @@ struct AgentCommand: AsyncParsableCommand {
     @Flag(name: .long, help: "Use random movement instead of LLM 🎲")
     var randomMovement: Bool = false
     
-    @Flag(name: .long, help: "Enable console logging for debugging 🐞")
-    var debugLogging: Bool = false
-    
-    @Flag(name: .long, help: "Enable detailed OpenAI API logging 🧠")
-    var llmLogging: Bool = false
+    @Flag(name: .long, help: "Enable verbose logging output 📝")
+    var verbose: Bool = false
     
     // MARK: - Command execution
     func run() async throws {
-        // Set environment variable for console logging if flag is enabled
-        if debugLogging {
-            setenv("AGENT_LOG_CONSOLE", "1", 1)
-            print("Debug logging enabled to console 🐞")
+        // Set environment variable for verbose logging if flag is enabled
+        if verbose {
+            setenv("AGENT_VERBOSE", "1", 1)
+            print("Verbose logging enabled 📝")
         }
         
-        // Set environment variable for LLM logging
-        if llmLogging {
-            setenv("AGENT_LLM_LOGGING", "1", 1)
-            print("Detailed LLM logging enabled 🧠")
-            
-            // When LLM logging is enabled, also enable console logging
-            if !debugLogging {
-                setenv("AGENT_LOG_CONSOLE", "1", 1)
-            }
-        }
-        
-        logger.info("🚀 Agent starting up!")
-        logToConsole("INFO", "🚀 Agent starting up!")
+        log("🚀 Agent starting up!", verbose: true)
         
         // Load environment variables from .env file
         EnvironmentService.loadEnvironment(from: envFile)
@@ -75,7 +54,7 @@ struct AgentCommand: AsyncParsableCommand {
         if !randomMovement {
             // Get OpenAI API key from environment
             guard let apiKey = EnvironmentService.getEnvironmentVariable("OPENAI_API_KEY") else {
-                logger.error("❌ OPENAI_API_KEY not found in environment or .env file")
+                log("❌ OPENAI_API_KEY not found in environment or .env file", verbose: true)
                 print("Error: OPENAI_API_KEY environment variable is required")
                 print("Please add it to your .env file or set it in your environment")
                 throw NSError(domain: "AgentCommand", code: 1, userInfo: [
@@ -85,15 +64,15 @@ struct AgentCommand: AsyncParsableCommand {
             
             // Initialize OpenAI service
             openAIService = OpenAIService(apiKey: apiKey)
-            logger.info("🧠 LLM-based decision making enabled")
+            log("🧠 LLM-based decision making enabled", verbose: true)
             print("LLM-based decision making enabled 🧠")
         } else {
             openAIService = nil
-            logger.info("🎲 Random movement enabled")
+            log("🎲 Random movement enabled", verbose: true)
             print("Random movement enabled 🎲")
         }
         
-        logger.info("🔌 Connecting to \(self.host):\(self.port)")
+        log("🔌 Connecting to \(self.host):\(self.port)", verbose: true)
         print("Connecting to \(host):\(port)...")
         
         // Create network service and establish connection
@@ -107,7 +86,7 @@ struct AgentCommand: AsyncParsableCommand {
             // Keep receiving data in a loop
             try await receiveDataLoop(using: networkService, openAIService: openAIService)
         } catch {
-            logger.error("❌ Connection error: \(error.localizedDescription)")
+            log("❌ Connection error: \(error.localizedDescription)", verbose: true)
             print("Failed to connect: \(error.localizedDescription)")
             throw error
         }
@@ -131,8 +110,7 @@ struct AgentCommand: AsyncParsableCommand {
                     print("🧭 Current location: (\(response.currentLocation.x), \(response.currentLocation.y)) - \(response.currentLocation.type)")
                     print("👀 Surroundings: \(response.surroundings.tiles.count) tiles and \(response.surroundings.agents.count) agents visible")
                     
-                    logger.debug("📨 Received response: \(response.responseType) for agent \(response.agent_id)")
-                    logToConsole("DEBUG", "📨 Received response: \(response.responseType) for agent \(response.agent_id)")
+                    log("📨 Received response: \(response.responseType) for agent \(response.agent_id)", verbose: true)
                     
                     // Only send an action if this is an observation message
                     if response.responseType == "observation" {
@@ -147,8 +125,7 @@ struct AgentCommand: AsyncParsableCommand {
                             do {
                                 action = try await decideNextAction(basedOn: response, using: openAIService)
                             } catch {
-                                logger.error("❌ LLM decision error: \(error.localizedDescription), falling back to random")
-                                logToConsole("ERROR", "❌ LLM decision error: \(error.localizedDescription), falling back to random")
+                                log("❌ LLM decision error: \(error.localizedDescription), falling back to random", verbose: true)
                                 action = createRandomAction(basedOn: response)
                             }
                         }
@@ -163,7 +140,7 @@ struct AgentCommand: AsyncParsableCommand {
                     // If parsing fails, show the raw data
                     if let message = String(data: data, encoding: .utf8) {
                         print("📩 Received (unparsed): \(message)")
-                        logger.debug("📨 Received unparsed message: \(message)")
+                        log("📨 Received unparsed message: \(message)", verbose: true)
                     } else {
                         // For binary data, show size and first few bytes
                         let preview = data.prefix(min(10, data.count))
@@ -171,13 +148,13 @@ struct AgentCommand: AsyncParsableCommand {
                             .joined(separator: " ")
                         
                         print("📦 Received \(data.count) bytes: \(preview)...")
-                        logger.debug("📦 Received binary data: \(data.count) bytes")
+                        log("📦 Received binary data: \(data.count) bytes", verbose: true)
                     }
                     
-                    logger.error("🔄 JSON parsing error: \(error.localizedDescription)")
+                    log("🔄 JSON parsing error: \(error.localizedDescription)", verbose: true)
                 }
             } catch {
-                logger.error("📡 Data reception error: \(error.localizedDescription)")
+                log("📡 Data reception error: \(error.localizedDescription)", verbose: true)
                 print("❌ Connection error: \(error.localizedDescription)")
                 throw error
             }
@@ -188,7 +165,7 @@ struct AgentCommand: AsyncParsableCommand {
     
     // LLM-based decision making
     private func decideNextAction(basedOn response: ServerResponse, using openAIService: OpenAIService?) async throws -> AgentAction {
-        logger.info("🤖 Using LLM to decide next action at time step \(response.timeStep)")
+        log("🤖 Using LLM to decide next action at time step \(response.timeStep)", verbose: true)
         
         guard let openAIService = openAIService else {
             throw NSError(domain: "AgentCommand", code: 2, userInfo: [
@@ -216,8 +193,7 @@ struct AgentCommand: AsyncParsableCommand {
             let isWater = targetTileInfo?.type == .water
             
             if !isAdjacent || isWater {
-                logger.warning("⚠️ LLM suggested invalid move to (\(targetTile.x), \(targetTile.y)), using fallback")
-                logToConsole("WARNING", "⚠️ LLM suggested invalid move to (\(targetTile.x), \(targetTile.y)), using fallback")
+                log("⚠️ LLM suggested invalid move to (\(targetTile.x), \(targetTile.y)), using fallback", verbose: true)
                 return createRandomAction(basedOn: response)
             }
         }
@@ -268,14 +244,13 @@ struct AgentCommand: AsyncParsableCommand {
 @main
 struct AgentMain {
     static func main() async {
-        // Check for debug logging flag
-        if ProcessInfo.processInfo.environment["AGENT_LOG_CONSOLE"] == "1" ||
-           ProcessInfo.processInfo.arguments.contains("--debug-logging") {
-            print("Debug logging enabled to console")
+        // Check for verbose flag
+        if ProcessInfo.processInfo.environment["AGENT_VERBOSE"] == "1" ||
+           ProcessInfo.processInfo.arguments.contains("--verbose") {
+            print("Verbose logging enabled")
         }
         
-        logger.info("📱 Agent program starting")
-        logToConsole("INFO", "📱 Agent program starting")
+        log("📱 Agent program starting", verbose: true)
         await AgentCommand.main()
     }
 }

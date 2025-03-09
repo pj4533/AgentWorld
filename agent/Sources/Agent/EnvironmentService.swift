@@ -1,56 +1,21 @@
 import Foundation
-import OSLog
 
-// Extend Logger to add console logging capability
-extension Logger {
-    func infoConsole(_ message: String) {
-        self.info("\(message)")
-        if ProcessInfo.processInfo.environment["AGENT_LOG_CONSOLE"] == "1" {
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "HH:mm:ss.SSS"
-            let timestamp = dateFormatter.string(from: Date())
-            print("[\(timestamp)] [INFO] \(message)")
-        }
-    }
-    
-    func debugConsole(_ message: String) {
-        self.debug("\(message)")
-        if ProcessInfo.processInfo.environment["AGENT_LOG_CONSOLE"] == "1" {
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "HH:mm:ss.SSS"
-            let timestamp = dateFormatter.string(from: Date())
-            print("[\(timestamp)] [DEBUG] \(message)")
-        }
-    }
-    
-    func errorConsole(_ message: String) {
-        self.error("\(message)")
-        if ProcessInfo.processInfo.environment["AGENT_LOG_CONSOLE"] == "1" {
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "HH:mm:ss.SSS"
-            let timestamp = dateFormatter.string(from: Date())
-            print("[\(timestamp)] [ERROR] \(message)")
-        }
-    }
-    
-    func warningConsole(_ message: String) {
-        self.warning("\(message)")
-        if ProcessInfo.processInfo.environment["AGENT_LOG_CONSOLE"] == "1" {
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "HH:mm:ss.SSS"
-            let timestamp = dateFormatter.string(from: Date())
-            print("[\(timestamp)] [WARNING] \(message)")
-        }
+// Simple logging function
+fileprivate func log(_ message: String, verbose: Bool = false) {
+    if verbose || ProcessInfo.processInfo.environment["AGENT_VERBOSE"] == "1" {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "HH:mm:ss.SSS"
+        let timestamp = dateFormatter.string(from: Date())
+        print("[\(timestamp)] \(message)")
     }
 }
 
 struct EnvironmentService {
-    private static let logger = Logger(subsystem: "com.agentworld.agent", category: "EnvironmentService")
     
     // Process an .env file at the given path and load variables
     static func loadEnvironment(from path: String = ".env") {
         do {
-            logger.debug("📁 Loading environment variables from \(path)")
+            log("📁 Loading environment variables from \(path)", verbose: true)
             
             // Read the .env file
             let fileURL = URL(fileURLWithPath: path)
@@ -67,7 +32,7 @@ struct EnvironmentService {
                 // Parse KEY=VALUE pairs
                 let parts = trimmedLine.split(separator: "=", maxSplits: 1)
                 guard parts.count == 2 else {
-                    logger.warning("⚠️ Invalid line in .env file: \(trimmedLine)")
+                    log("⚠️ Invalid line in .env file: \(trimmedLine)", verbose: true)
                     return
                 }
                 
@@ -81,13 +46,13 @@ struct EnvironmentService {
                 
                 // Set the environment variable
                 setenv(key, value, 1)
-                logger.debug("🔑 Set environment variable: \(key)")
+                log("🔑 Set environment variable: \(key)", verbose: true)
             }
             
-            logger.infoConsole("✅ Environment loaded successfully from \(path)")
+            log("✅ Environment loaded successfully from \(path)", verbose: true)
         } catch {
-            logger.warningConsole("⚠️ Failed to load .env file: \(error.localizedDescription)")
-            logger.infoConsole("ℹ️ Will use existing environment variables instead")
+            log("⚠️ Failed to load .env file: \(error.localizedDescription)", verbose: true)
+            log("ℹ️ Will use existing environment variables instead", verbose: true)
         }
     }
     

@@ -1,24 +1,32 @@
 import Foundation
 import Network
-import OSLog
+
+// Simple logging function
+fileprivate func log(_ message: String, verbose: Bool = false) {
+    if verbose || ProcessInfo.processInfo.environment["AGENT_VERBOSE"] == "1" {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "HH:mm:ss.SSS"
+        let timestamp = dateFormatter.string(from: Date())
+        print("[\(timestamp)] \(message)")
+    }
+}
 
 actor NetworkService {
     // MARK: - Properties
     private let host: String
     private let port: UInt16
     private var connection: NWConnection?
-    private let logger = Logger(subsystem: "com.agentworld.agent", category: "NetworkService")
     
     // MARK: - Initialization
     init(host: String, port: UInt16) {
         self.host = host
         self.port = port
-        self.logger.debug("🔧 Network service initialized for \(host):\(port)")
+        log("🔧 Network service initialized for \(host):\(port)", verbose: true)
     }
     
     // MARK: - Connection Management
     func connect() async throws {
-        logger.info("🔌 Establishing connection to \(self.host):\(self.port)")
+        log("🔌 Establishing connection to \(self.host):\(self.port)", verbose: true)
         
         // Create NWEndpoint for the connection
         let endpoint = NWEndpoint.hostPort(
@@ -38,22 +46,22 @@ actor NetworkService {
                 
                 switch state {
                 case .ready:
-                    self.logger.info("✅ Connection established to \(self.host):\(self.port)")
+                    log("✅ Connection established to \(self.host):\(self.port)", verbose: true)
                     continuation.resume(returning: ())
                     
                 case .failed(let error):
-                    self.logger.error("❌ Connection failed: \(error.localizedDescription)")
+                    log("❌ Connection failed: \(error.localizedDescription)", verbose: true)
                     continuation.resume(throwing: error)
                     
                 case .cancelled:
-                    self.logger.error("🚫 Connection was cancelled")
+                    log("🚫 Connection was cancelled", verbose: true)
                     continuation.resume(throwing: NSError(domain: "NetworkService", code: 1, userInfo: [
                         NSLocalizedDescriptionKey: "Connection was cancelled"
                     ]))
                     
                 default:
                     // For other states, we wait for the next update
-                    self.logger.debug("🔄 Connection state: \(String(describing: state))")
+                    log("🔄 Connection state: \(String(describing: state))", verbose: true)
                 }
             }
             
@@ -104,7 +112,7 @@ actor NetworkService {
         
         // Log the action being sent
         if let jsonString = String(data: data, encoding: .utf8) {
-            logger.debug("📤 Sending action: \(jsonString)")
+            log("📤 Sending action: \(jsonString)", verbose: true)
         }
         
         // Send the data
@@ -120,7 +128,7 @@ actor NetworkService {
     }
     
     func disconnect() {
-        logger.info("👋 Disconnecting from \(self.host):\(self.port)")
+        log("👋 Disconnecting from \(self.host):\(self.port)", verbose: true)
         connection?.cancel()
         connection = nil
     }

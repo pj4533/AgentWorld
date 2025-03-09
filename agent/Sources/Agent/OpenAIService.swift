@@ -1,69 +1,19 @@
 import Foundation
-import OSLog
 
-// For tracking OpenAI API interaction details
-fileprivate func logOpenAI(_ type: String, _ message: String) {
-    let isLLMLoggingEnabled = ProcessInfo.processInfo.environment["AGENT_LLM_LOGGING"] == "1" ||
-                             ProcessInfo.processInfo.arguments.contains("--llm-logging")
-    
-    // For large messages, only log them if LLM logging is specifically enabled
-    if !isLLMLoggingEnabled && (
-        type == "SYSTEM_PROMPT" || 
-        type == "USER_PROMPT" || 
-        type == "REQUEST" || 
-        type == "RAW_RESPONSE" ||
-        message.count > 1000) {
-        // Skip detailed logs unless LLM logging is enabled
-        return
-    }
-    
-    // Always log OpenAI interactions to a file for later analysis
-    let fileManager = FileManager.default
-    let logDirectory = fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/AgentWorld")
-    
-    // Create directory if it doesn't exist
-    if !fileManager.fileExists(atPath: logDirectory.path) {
-        try? fileManager.createDirectory(at: logDirectory, withIntermediateDirectories: true)
-    }
-    
-    // Create a unique log file for each run by using the startup timestamp
-    let dateFormatter = DateFormatter()
-    dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-    let startupTime = dateFormatter.string(from: Date())
-    
-    let logFile = logDirectory.appendingPathComponent("openai_\(startupTime).log")
-    let timestamp = ISO8601DateFormatter().string(from: Date())
-    let logEntry = "[\(timestamp)] [\(type)] \(message)\n"
-    
-    // Append to log file or create a new one
-    if fileManager.fileExists(atPath: logFile.path) {
-        if let fileHandle = FileHandle(forWritingAtPath: logFile.path) {
-            fileHandle.seekToEndOfFile()
-            if let data = logEntry.data(using: .utf8) {
-                fileHandle.write(data)
-            }
-            fileHandle.closeFile()
-        }
-    } else {
-        try? logEntry.write(to: logFile, atomically: true, encoding: .utf8)
-    }
-    
-    // Check if console logging is enabled
-    let isConsoleLoggingEnabled = ProcessInfo.processInfo.environment["AGENT_LOG_CONSOLE"] == "1" || 
-                                 ProcessInfo.processInfo.arguments.contains("--debug-logging")
-    
-    // Also print to console if debug logging is enabled
-    if isConsoleLoggingEnabled {
+// Simple logging function
+fileprivate func log(_ message: String, verbose: Bool = false) {
+    if verbose || ProcessInfo.processInfo.environment["AGENT_VERBOSE"] == "1" {
+        let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "HH:mm:ss.SSS"
-        let shortTimestamp = dateFormatter.string(from: Date())
+        let timestamp = dateFormatter.string(from: Date())
         
-        // For very long messages, truncate them for console output
+        // Truncate very long messages for console output
         var displayMessage = message
-        if displayMessage.count > 1000 && !isLLMLoggingEnabled {
-            displayMessage = String(displayMessage.prefix(1000)) + "... [truncated, use --llm-logging to see full content]"
+        if displayMessage.count > 1000 {
+            displayMessage = String(displayMessage.prefix(1000)) + "... [truncated]"
         }
         
-        print("[\(shortTimestamp)] [OPENAI] \(displayMessage)")
+        print("[\(timestamp)] \(displayMessage)")
     }
 }
 
@@ -109,21 +59,20 @@ actor OpenAIService {
     // MARK: - Properties
     private let apiKey: String
     private let baseURL = "https://api.openai.com/v1/chat/completions"
-    private let logger = Logger(subsystem: "com.agentworld.agent", category: "OpenAIService")
     
     // MARK: - Initialization
     init(apiKey: String) {
         self.apiKey = apiKey
-        self.logger.debug("🧠 OpenAI service initialized")
+        log("🧠 OpenAI service initialized", verbose: true)
     }
     
     // MARK: - Chat Completion
     func chatCompletion(systemPrompt: String, userPrompt: String) async throws -> String {
-        logger.debug("🤖 Sending chat completion request to OpenAI")
+        log("🤖 Sending chat completion request to OpenAI", verbose: true)
         
-        // Log the prompts
-        logOpenAI("SYSTEM_PROMPT", systemPrompt)
-        logOpenAI("USER_PROMPT", userPrompt)
+        // Log the prompts when verbose
+        log("SYSTEM_PROMPT: \(systemPrompt)", verbose: true)
+        log("USER_PROMPT: \(userPrompt)", verbose: true)
         
         // Create the request
         let messages = [
@@ -142,9 +91,9 @@ actor OpenAIService {
         jsonEncoder.outputFormatting = [.prettyPrinted]
         let requestData = try jsonEncoder.encode(requestBody)
         
-        // Log the request payload
+        // Log the request payload when verbose
         if let requestStr = String(data: requestData, encoding: .utf8) {
-            logOpenAI("REQUEST", requestStr)
+            log("REQUEST: \(requestStr)", verbose: true)
         }
         
         // Create URL request
@@ -156,22 +105,21 @@ actor OpenAIService {
         
         // Send the request
         let requestStartTime = Date()
-        logger.debug("📤 Sending request to OpenAI API")
+        log("📤 Sending request to OpenAI API", verbose: true)
         let (data, response) = try await URLSession.shared.data(for: request)
         let requestDuration = Date().timeIntervalSince(requestStartTime)
         
-        logOpenAI("REQUEST_TIME", "Request took \(String(format: "%.2f", requestDuration)) seconds")
+        log("Request took \(String(format: "%.2f", requestDuration)) seconds", verbose: true)
         
-        // Log raw response data
+        // Log raw response data when verbose
         if let responseStr = String(data: data, encoding: .utf8) {
-            logOpenAI("RAW_RESPONSE", responseStr)
+            log("RAW_RESPONSE: \(responseStr)", verbose: true)
         }
         
         // Check for HTTP errors
         guard let httpResponse = response as? HTTPURLResponse else {
             let errorMsg = "Invalid response from OpenAI API"
-            logger.error("❌ \(errorMsg)")
-            logOpenAI("ERROR", errorMsg)
+            log("❌ \(errorMsg)", verbose: true)
             throw NSError(domain: "OpenAIService", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: errorMsg
             ])
@@ -180,8 +128,7 @@ actor OpenAIService {
         guard (200...299).contains(httpResponse.statusCode) else {
             let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
             let errorMsg = "HTTP error \(httpResponse.statusCode): \(errorMessage)"
-            logger.error("❌ \(errorMsg)")
-            logOpenAI("ERROR", errorMsg)
+            log("❌ \(errorMsg)", verbose: true)
             throw NSError(domain: "OpenAIService", code: httpResponse.statusCode, userInfo: [
                 NSLocalizedDescriptionKey: errorMsg
             ])
@@ -193,31 +140,27 @@ actor OpenAIService {
         
         guard let choice = apiResponse.choices.first else {
             let errorMsg = "No choices in OpenAI API response"
-            logger.error("❌ \(errorMsg)")
-            logOpenAI("ERROR", errorMsg)
+            log("❌ \(errorMsg)", verbose: true)
             throw NSError(domain: "OpenAIService", code: 3, userInfo: [
                 NSLocalizedDescriptionKey: errorMsg
             ])
         }
         
         // Log the model's response
-        logOpenAI("RESPONSE_CONTENT", choice.message.content)
-        logOpenAI("FINISH_REASON", choice.finish_reason)
+        log("RESPONSE_CONTENT: \(choice.message.content)", verbose: true)
+        log("FINISH_REASON: \(choice.finish_reason)", verbose: true)
         
-        logger.debug("✅ Received response from OpenAI API")
+        log("✅ Received response from OpenAI API", verbose: true)
         return choice.message.content
     }
     
     // MARK: - Decision Making
     func decideNextAction(observation: ServerResponse) async throws -> AgentAction {
-        logger.info("🧠 Deciding next action based on observation at time step \(observation.timeStep)")
-        logOpenAI("DECISION", "Starting decision process for time step \(observation.timeStep)")
+        log("🧠 Deciding next action based on observation at time step \(observation.timeStep)", verbose: true)
         
-        // Log the current agent position
-        logOpenAI("AGENT_POS", "Current position: (\(observation.currentLocation.x), \(observation.currentLocation.y)) - \(observation.currentLocation.type)")
-        
-        // Log overview of surroundings
-        logOpenAI("SURROUNDINGS", "Visible tiles: \(observation.surroundings.tiles.count), Visible agents: \(observation.surroundings.agents.count)")
+        // Log the current agent position and surroundings
+        log("Current position: (\(observation.currentLocation.x), \(observation.currentLocation.y)) - \(observation.currentLocation.type)", verbose: true)
+        log("Surroundings: \(observation.surroundings.tiles.count) tiles, \(observation.surroundings.agents.count) agents", verbose: true)
         
         let systemPrompt = """
         You are an explorer in a new world. 
@@ -244,16 +187,14 @@ actor OpenAIService {
         
         // Mark the start of LLM decision making 
         let decisionStartTime = Date()
-        logOpenAI("DECISION_START", "Starting LLM request for movement decision")
+        log("Starting LLM request for movement decision", verbose: true)
         
         // Get a response from the OpenAI API
         let jsonResponse = try await chatCompletion(systemPrompt: systemPrompt, userPrompt: userPrompt)
         
         // Log timing information
         let decisionDuration = Date().timeIntervalSince(decisionStartTime)
-        logOpenAI("DECISION_TIME", "Decision process took \(String(format: "%.2f", decisionDuration)) seconds")
-        
-        logger.debug("📄 OpenAI response: \(jsonResponse)")
+        log("Decision process took \(String(format: "%.2f", decisionDuration)) seconds", verbose: true)
         
         // Parse the JSON response
         let responseData = jsonResponse.data(using: .utf8)!
@@ -263,7 +204,7 @@ actor OpenAIService {
             let gptAction = try decoder.decode(GPTActionResponse.self, from: responseData)
             
             // Log the decision that was made
-            logOpenAI("ACTION_DECISION", "Moving to position: (\(gptAction.targetTile.x), \(gptAction.targetTile.y))")
+            log("Moving to position: (\(gptAction.targetTile.x), \(gptAction.targetTile.y))", verbose: true)
             
             // Convert to AgentAction
             return AgentAction(
@@ -273,15 +214,12 @@ actor OpenAIService {
             )
         } catch {
             // Log parsing error
-            logger.error("❌ Failed to decode OpenAI response: \(error.localizedDescription)")
-            logger.error("📄 Raw response: \(jsonResponse)")
-            logOpenAI("PARSE_ERROR", "Failed to parse LLM response: \(error.localizedDescription)")
-            logOpenAI("INVALID_JSON", jsonResponse)
-            
-            // Log fallback action
-            logOpenAI("FALLBACK", "Using fallback action: staying in place at (\(observation.currentLocation.x), \(observation.currentLocation.y))")
+            log("❌ Failed to decode OpenAI response: \(error.localizedDescription)", verbose: true)
+            log("📄 Raw response: \(jsonResponse)", verbose: true)
             
             // Fallback to a simple action (stay in place)
+            log("Using fallback action: staying in place at (\(observation.currentLocation.x), \(observation.currentLocation.y))", verbose: true)
+            
             return AgentAction(
                 action: .move,
                 targetTile: Coordinate(x: observation.currentLocation.x, y: observation.currentLocation.y),
