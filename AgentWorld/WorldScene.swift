@@ -119,7 +119,7 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         // Handle zoom interpolation in the update loop
         if hasTargetZoom && abs(currentZoom - targetZoom) > 0.001 {
             // Calculate a smooth interpolation to the target zoom
-            let zoomSmoothFactor: CGFloat = 0.3 // Controls zoom speed
+            let zoomSmoothFactor: CGFloat = 0.6 // Increased from 0.3 for faster zooming
             let dZoom = targetZoom - currentZoom
             
             // Update the current zoom with smoothing
@@ -228,8 +228,8 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
             // Reversed direction - now scrolling up (negative scrollingDeltaY) means zoom out
             let zoomDirection: CGFloat = event.scrollingDeltaY > 0 ? 1 : -1
             
-            // Faster zoom amount for scroll wheel
-            let zoomAmount: CGFloat = 0.15 * zoomDirection
+            // Significantly faster zoom amount for scroll wheel
+            let zoomAmount: CGFloat = 0.3 * zoomDirection
             
             // Get mouse location in scene coordinates to zoom toward that point
             let mouseLocation = event.location(in: self)
@@ -247,10 +247,10 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
             case "=", "+": // Zoom in with plus key
                 // For keyboard zoom, use center of screen
                 let centerPoint = CGPoint(x: size.width / 2, y: size.height / 2)
-                smoothZoom(by: 0.5, towardPoint: centerPoint)
+                smoothZoom(by: 1.0, towardPoint: centerPoint)
             case "-", "_": // Zoom out with minus key
                 let centerPoint = CGPoint(x: size.width / 2, y: size.height / 2)
-                smoothZoom(by: -0.5, towardPoint: centerPoint)
+                smoothZoom(by: -1.0, towardPoint: centerPoint)
             case "0":      // Reset zoom
                 resetZoom()
             default:
