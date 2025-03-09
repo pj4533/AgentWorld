@@ -17,7 +17,8 @@ class WorldScene: SKScene, InputHandlerDelegate, WorldSceneDelegate {
     // Change from private to internal access level to allow synchronization
     internal var world: World!
     internal var tileSize: CGFloat = 10
-    private var worldRenderer: WorldRenderer!
+    // Changed to internal for testability
+    internal var worldRenderer: WorldRenderer!
     private var inputHandler: InputHandler!
     private var currentTimeStep: Int = 0
     // Changed to internal for testability

@@ -69,6 +69,9 @@ class MockServerConnectionManager: ServerConnectionManager {
         // Set the world in the scene
         scene.setWorld(world)
         
+        // Initialize the worldRenderer for testing (since didMove: isn't called in tests)
+        scene.worldRenderer = WorldRenderer(world: world, tileSize: scene.tileSize)
+        
         // Manually update the agent position in the server's world to simulate a move
         // This is what would happen after a successful move command
         var updatedWorld = mockServer.world
