@@ -1,5 +1,6 @@
 import Foundation
 import ArgumentParser
+import OSLog
 
 // MARK: - Logger setup
 // Avoid direct mutable state by using environment variables only
@@ -16,14 +17,50 @@ fileprivate func isVerboseMode() -> Bool {
     return ProcessInfo.processInfo.environment["AGENT_VERBOSE"] == "1"
 }
 
+// Agent logger struct that uses OSLog but also prints to terminal for CLI usage
+struct AgentLogger {
+    private let logger: Logger
+    private let category: String
+    
+    init(category: String) {
+        self.logger = Logger(subsystem: "com.agentworld.Agent", category: category)
+        self.category = category
+    }
+    
+    func debug(_ message: String) {
+        logger.debug("\(message, privacy: .public)")
+        // Also print to terminal for CLI visibility
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "HH:mm:ss.SSS"
+        let timestamp = dateFormatter.string(from: Date())
+        print("[\(timestamp)] [\(category)] DEBUG: \(message)")
+    }
+    
+    func info(_ message: String) {
+        logger.info("\(message, privacy: .public)")
+        // Also print to terminal for CLI visibility
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "HH:mm:ss.SSS"
+        let timestamp = dateFormatter.string(from: Date())
+        print("[\(timestamp)] [\(category)] INFO: \(message)")
+    }
+    
+    func error(_ message: String) {
+        logger.error("\(message, privacy: .public)")
+        // Also print to terminal for CLI visibility
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "HH:mm:ss.SSS"
+        let timestamp = dateFormatter.string(from: Date())
+        print("[\(timestamp)] [\(category)] ERROR: \(message)")
+    }
+}
+
 // Central logging function that respects verbose flag
 fileprivate func log(_ message: String, verbose: Bool = false, forceShow: Bool = false) {
     // Only log if we're in verbose mode OR this is a message that should always be shown
     if forceShow || (verbose && isVerboseMode()) {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "HH:mm:ss.SSS"
-        let timestamp = dateFormatter.string(from: Date())
-        print("[\(timestamp)] \(message)")
+        let logger = AgentLogger(category: "Agent")
+        logger.debug(message)
     }
 }
 
@@ -57,7 +94,8 @@ struct AgentCommand: AsyncParsableCommand {
         setVerboseMode(verbose)
         
         if verbose {
-            print("Verbose logging enabled 📝")
+            let logger = AgentLogger(category: "Agent")
+            logger.info("Verbose logging enabled 📝")
         }
         
         log("🚀 Agent starting up!", verbose: true, forceShow: true)
@@ -72,8 +110,9 @@ struct AgentCommand: AsyncParsableCommand {
             // Get OpenAI API key from environment
             guard let apiKey = EnvironmentService.getEnvironmentVariable("OPENAI_API_KEY") else {
                 log("❌ OPENAI_API_KEY not found in environment or .env file", verbose: true)
-                print("Error: OPENAI_API_KEY environment variable is required")
-                print("Please add it to your .env file or set it in your environment")
+                let logger = AgentLogger(category: "Agent")
+                logger.error("OPENAI_API_KEY environment variable is required")
+                logger.error("Please add it to your .env file or set it in your environment")
                 throw NSError(domain: "AgentCommand", code: 1, userInfo: [
                     NSLocalizedDescriptionKey: "OPENAI_API_KEY not found"
                 ])
@@ -82,15 +121,18 @@ struct AgentCommand: AsyncParsableCommand {
             // Initialize OpenAI service
             openAIService = OpenAIService(apiKey: apiKey)
             log("🧠 LLM-based decision making enabled", verbose: true)
-            print("LLM-based decision making enabled 🧠")
+            let logger = AgentLogger(category: "Agent")
+            logger.info("LLM-based decision making enabled 🧠")
         } else {
             openAIService = nil
             log("🎲 Random movement enabled", verbose: true)
-            print("Random movement enabled 🎲")
+            let logger = AgentLogger(category: "Agent")
+            logger.info("Random movement enabled 🎲")
         }
         
         log("🔌 Connecting to \(self.host):\(self.port)", verbose: true)
-        print("Connecting to \(host):\(port)...")
+        let logger = AgentLogger(category: "Agent")
+        logger.info("Connecting to \(host):\(port)...")
         
         // Create network service and establish connection
         let networkService = NetworkService(host: host, port: port)
@@ -98,19 +140,22 @@ struct AgentCommand: AsyncParsableCommand {
         do {
             // Connect to the server
             try await networkService.connect()
-            print("Connected to server! 🎉")
+            let logger = AgentLogger(category: "Agent")
+            logger.info("Connected to server! 🎉")
             
             // Keep receiving data in a loop
             try await receiveDataLoop(using: networkService, openAIService: openAIService)
         } catch {
             log("❌ Connection error: \(error.localizedDescription)", verbose: true)
-            print("Failed to connect: \(error.localizedDescription)")
+            let logger = AgentLogger(category: "Agent")
+            logger.error("Failed to connect: \(error.localizedDescription)")
             throw error
         }
     }
     
     private func receiveDataLoop(using networkService: NetworkService, openAIService: OpenAIService?) async throws {
-        print("Listening for server messages... 👂")
+        let logger = AgentLogger(category: "Agent")
+        logger.info("Listening for server messages... 👂")
         
         // Start an infinite loop to receive data
         while true {
@@ -123,9 +168,10 @@ struct AgentCommand: AsyncParsableCommand {
                     let response = try decoder.decode(ServerResponse.self, from: data)
                     
                     // Process the server response
-                    print("📩 Received observation at time step \(response.timeStep)")
-                    print("🧭 Current location: (\(response.currentLocation.x), \(response.currentLocation.y)) - \(response.currentLocation.type)")
-                    print("👀 Surroundings: \(response.surroundings.tiles.count) tiles and \(response.surroundings.agents.count) agents visible")
+                    let logger = AgentLogger(category: "Agent")
+                    logger.info("📩 Received observation at time step \(response.timeStep)")
+                    logger.info("🧭 Current location: (\(response.currentLocation.x), \(response.currentLocation.y)) - \(response.currentLocation.type)")
+                    logger.info("👀 Surroundings: \(response.surroundings.tiles.count) tiles and \(response.surroundings.agents.count) agents visible")
                     
                     log("📨 Received response: \(response.responseType) for agent \(response.agent_id)", verbose: true)
                     
@@ -149,14 +195,17 @@ struct AgentCommand: AsyncParsableCommand {
                         
                         // Send the action to the server
                         try await networkService.sendAction(action)
-                        print("🚀 Sent action: \(action.action.rawValue) to \(action.targetTile?.x ?? 0), \(action.targetTile?.y ?? 0)")
+                        let logger = AgentLogger(category: "Agent")
+                        logger.info("🚀 Sent action: \(action.action.rawValue) to \(action.targetTile?.x ?? 0), \(action.targetTile?.y ?? 0)")
                     } else {
-                        print("📝 Received \(response.responseType) message, not sending an action")
+                        let logger = AgentLogger(category: "Agent")
+                        logger.info("📝 Received \(response.responseType) message, not sending an action")
                     }
                 } catch {
                     // If parsing fails, show the raw data
+                    let logger = AgentLogger(category: "Agent")
                     if let message = String(data: data, encoding: .utf8) {
-                        print("📩 Received (unparsed): \(message)")
+                        logger.info("📩 Received (unparsed): \(message)")
                         log("📨 Received unparsed message: \(message)", verbose: true)
                     } else {
                         // For binary data, show size and first few bytes
@@ -164,7 +213,7 @@ struct AgentCommand: AsyncParsableCommand {
                             .map { String(format: "%02x", $0) }
                             .joined(separator: " ")
                         
-                        print("📦 Received \(data.count) bytes: \(preview)...")
+                        logger.info("📦 Received \(data.count) bytes: \(preview)...")
                         log("📦 Received binary data: \(data.count) bytes", verbose: true)
                     }
                     
@@ -172,7 +221,8 @@ struct AgentCommand: AsyncParsableCommand {
                 }
             } catch {
                 log("📡 Data reception error: \(error.localizedDescription)", verbose: true)
-                print("❌ Connection error: \(error.localizedDescription)")
+                let logger = AgentLogger(category: "Agent")
+                logger.error("❌ Connection error: \(error.localizedDescription)")
                 throw error
             }
         }
@@ -190,7 +240,8 @@ struct AgentCommand: AsyncParsableCommand {
             ])
         }
         
-        print("Asking AI for next move... 🧠")
+        let logger = AgentLogger(category: "Agent")
+        logger.info("Asking AI for next move... 🧠")
         let action = try await openAIService.decideNextAction(observation: response)
         
         // Verify that the target tile is valid (adjacent and not water)
@@ -264,7 +315,8 @@ struct AgentMain {
         // Check for direct command line flag usage
         if ProcessInfo.processInfo.arguments.contains("--verbose") {
             setVerboseMode(true)
-            print("Verbose logging enabled")
+            let logger = AgentLogger(category: "Agent")
+            logger.info("Verbose logging enabled")
         }
         
         log("📱 Agent program starting", verbose: true, forceShow: true)

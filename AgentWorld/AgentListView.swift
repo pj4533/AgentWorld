@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import OSLog
 
 struct AgentListView: View {
     @ObservedObject var viewModel: SimulationViewModel
@@ -20,7 +21,8 @@ struct AgentListView: View {
         let ids = Array(agents.keys.sorted())
         
         // Log the current agent IDs to help debug
-        print("AgentListView refreshed with \(ids.count) agents: \(ids)")
+        let logger = AppLogger(category: "AgentListView")
+        logger.debug("AgentListView refreshed with \(ids.count) agents: \(ids)")
         
         return ids
     }

@@ -7,6 +7,7 @@
 
 import Foundation
 import AppKit
+import OSLog
 
 struct AgentInfo {
     let id: String
@@ -142,24 +143,26 @@ class World {
     }
     
     func moveAgent(id: String, to position: (x: Int, y: Int)) -> Bool {
+        let logger = AppLogger(category: "World")
+        
         // Verify the agent exists
         guard var agent = agents[id] else {
-            print("⚠️ moveAgent: Agent \(id) not found in world")
+            logger.error("moveAgent: Agent \(id) not found in world")
             return false
         }
         
         // Log original position for debugging
-        print("🔍 moveAgent: Agent \(id) current position: (\(agent.position.x), \(agent.position.y))")
+        logger.debug("moveAgent: Agent \(id) current position: (\(agent.position.x), \(agent.position.y))")
         
         // Check if the position is in bounds
         guard position.x >= 0 && position.x < World.size && position.y >= 0 && position.y < World.size else {
-            print("⚠️ moveAgent: Target position (\(position.x), \(position.y)) is out of bounds")
+            logger.error("moveAgent: Target position (\(position.x), \(position.y)) is out of bounds")
             return false
         }
         
         // Check if the position is valid (not water/mountains, not occupied)
         if !isValidForAgent(x: position.x, y: position.y) {
-            print("⚠️ moveAgent: Target position (\(position.x), \(position.y)) is not valid for agent")
+            logger.error("moveAgent: Target position (\(position.x), \(position.y)) is not valid for agent")
             return false
         }
         
@@ -170,7 +173,7 @@ class World {
         
         // Ensure the agent only moves one tile in any direction (including diagonal)
         if dx > 1 || dy > 1 {
-            print("⚠️ moveAgent: Move distance too large - dx: \(dx), dy: \(dy)")
+            logger.error("moveAgent: Move distance too large - dx: \(dx), dy: \(dy)")
             return false
         }
         
@@ -181,9 +184,9 @@ class World {
         // Verify the update was successful
         if let updatedAgent = agents[id] {
             if updatedAgent.position.x == position.x && updatedAgent.position.y == position.y {
-                print("✅ moveAgent: Successfully updated agent \(id) position to (\(position.x), \(position.y))")
+                logger.debug("moveAgent: Successfully updated agent \(id) position to (\(position.x), \(position.y))")
             } else {
-                print("⚠️ moveAgent: Failed to update agent position! Current: (\(updatedAgent.position.x), \(updatedAgent.position.y)), Target: (\(position.x), \(position.y))")
+                logger.error("moveAgent: Failed to update agent position! Current: (\(updatedAgent.position.x), \(updatedAgent.position.y)), Target: (\(position.x), \(position.y))")
             }
         }
         
@@ -228,6 +231,8 @@ class World {
     }
     
     func createObservation(for agentID: String, timeStep: Int) -> Observation? {
+        let logger = AppLogger(category: "World")
+        
         guard let agent = agents[agentID] else {
             return nil
         }
@@ -235,7 +240,7 @@ class World {
         // Verify agent's position is valid before proceeding
         let pos = agent.position
         guard pos.x >= 0 && pos.x < World.size && pos.y >= 0 && pos.y < World.size else {
-            print("⚠️ Warning: Agent \(agentID) has invalid position (\(pos.x), \(pos.y))")
+            logger.error("Warning: Agent \(agentID) has invalid position (\(pos.x), \(pos.y))")
             return nil
         }
         
@@ -267,7 +272,7 @@ class World {
             )
         }
         
-        print("🔍 Creating observation for agent \(agentID) at position (\(pos.x), \(pos.y)) on \(currentTileType.description) tile")
+        logger.debug("Creating observation for agent \(agentID) at position (\(pos.x), \(pos.y)) on \(currentTileType.description) tile")
         
         return Observation(
             agent_id: agentID,

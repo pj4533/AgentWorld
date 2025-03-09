@@ -9,6 +9,7 @@ import Testing
 @testable import AgentWorld
 import Foundation
 import SpriteKit
+import OSLog
 
 // Mock ServerConnectionManager for testing
 class MockServerConnectionManager: ServerConnectionManager {
@@ -29,9 +30,10 @@ class MockServerConnectionManager: ServerConnectionManager {
         
         // Instead of actually sending any network messages,
         // just log what would have been sent
-        print("📤 Mock sendObservationsToAll at timeStep: \(timeStep)")
+        let logger = AppLogger(category: "MockServerConnectionManager")
+        logger.debug("📤 Mock sendObservationsToAll at timeStep: \(timeStep)")
         for (agentId, pos) in agentPositionsAtObservation {
-            print("   Agent \(agentId) observation would show position: (\(pos.x), \(pos.y))")
+            logger.debug("   Agent \(agentId) observation would show position: (\(pos.x), \(pos.y))")
         }
     }
 }

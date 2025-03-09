@@ -9,6 +9,7 @@ import Testing
 import Network
 @testable import AgentWorld
 import Foundation
+import OSLog
 
 // Using the mock network classes from MockNetworkClasses.swift
 
@@ -21,25 +22,29 @@ class MockConnectionDelegate: ServerConnectionManagerDelegate {
     
     func worldDidUpdate(_ world: World) {
         updatedWorlds.append(world)
-        print("🔄 Delegate received worldDidUpdate with \(world.agents.count) agents")
+        let logger = AppLogger(category: "MockConnectionDelegate")
+        logger.debug("🔄 Delegate received worldDidUpdate with \(world.agents.count) agents")
         for (id, agent) in world.agents {
-            print("Agent \(id) at position (\(agent.position.x), \(agent.position.y))")
+            logger.debug("Agent \(id) at position (\(agent.position.x), \(agent.position.y))")
         }
     }
     
     func agentDidConnect(id: String, position: (x: Int, y: Int)) {
         connectedAgents.append((id: id, position: position))
-        print("👋 Delegate received agentDidConnect: \(id) at (\(position.x), \(position.y))")
+        let logger = AppLogger(category: "MockConnectionDelegate")
+        logger.debug("👋 Delegate received agentDidConnect: \(id) at (\(position.x), \(position.y))")
     }
     
     func agentDidDisconnect(id: String) {
         disconnectedAgents.append(id)
-        print("👋 Delegate received agentDidDisconnect: \(id)")
+        let logger = AppLogger(category: "MockConnectionDelegate")
+        logger.debug("👋 Delegate received agentDidDisconnect: \(id)")
     }
     
     func serverDidEncounterError(_ error: Error) {
         errors.append(error)
-        print("❌ Delegate received error: \(error.localizedDescription)")
+        let logger = AppLogger(category: "MockConnectionDelegate")
+        logger.error("❌ Delegate received error: \(error.localizedDescription)")
     }
 }
 

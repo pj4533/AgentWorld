@@ -6,6 +6,7 @@
 //
 
 import SpriteKit
+import OSLog
 
 class WorldRenderer {
     // Changed from let to var to allow for updates
@@ -142,8 +143,10 @@ class WorldRenderer {
     private func renderAgents(in scene: SKScene) {
         guard let agentContainer = agentContainer else { return }
         
+        let logger = AppLogger(category: "WorldRenderer")
+        
         // First, log debug info about all agents being rendered
-        print("🤖 Rendering \(world.agents.count) agents in the world")
+        logger.debug("Rendering \(world.agents.count) agents in the world")
         
         // Remove all agent nodes from the scene
         scene.enumerateChildNodes(withName: "//agent-*") { node, _ in
@@ -160,7 +163,7 @@ class WorldRenderer {
         
         // Render all agents in the world with brand new nodes
         for (agentID, agentInfo) in world.agents {
-            print("🤖 Rendering agent \(agentID) at position (\(agentInfo.position.x), \(agentInfo.position.y))")
+            logger.debug("Rendering agent \(agentID) at position (\(agentInfo.position.x), \(agentInfo.position.y))")
             
             // Always create a new agent node to avoid any caching issues
             let agentNode = tileRenderer.createAgentNode(
@@ -205,7 +208,7 @@ class WorldRenderer {
         
         // Verify agent count after rendering
         if agentContainer.children.count != world.agents.count {
-            print("⚠️ Warning: Agent count mismatch - World has \(world.agents.count) agents but rendered \(agentContainer.children.count) sprites")
+            logger.error("Agent count mismatch - World has \(world.agents.count) agents but rendered \(agentContainer.children.count) sprites")
         }
     }
 }
