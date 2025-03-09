@@ -28,6 +28,9 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
     // Only update camera in the update method for smooth movement
     private var needsCameraUpdate = false
     
+    // Camera tracking state
+    private var isTrackingAgent = false
+    
     // Zoom constraints
     private let minZoom: CGFloat = 1.0  // Default zoom (whole map visible)
     private let maxZoom: CGFloat = 5.0  // Maximum zoom level
@@ -115,6 +118,16 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
                 x: cameraNode.position.x + dx * positionSmoothFactor,
                 y: cameraNode.position.y + dy * positionSmoothFactor
             )
+            
+            // If we're very close to the target, snap to exact position
+            // This ensures we don't miss the target due to diminishing changes
+            if abs(dx) < 1.0 && abs(dy) < 1.0 {
+                cameraNode.position = cameraTargetPosition
+                // Once we've reached the target, stop tracking it
+                if !isTrackingAgent {
+                    hasTargetPosition = false
+                }
+            }
         }
         
         // Handle zoom interpolation in the update loop
@@ -160,6 +173,9 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         // Skip if we're not in dragging mode
         guard isDragging else { return }
         
+        // Disable agent tracking when manually dragging
+        isTrackingAgent = false
+        
         // Filter out tiny movements that can cause jitter
         let dx = event.deltaX
         let dy = event.deltaY
@@ -178,6 +194,11 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
     override func mouseUp(with event: NSEvent) {
         // End dragging mode
         isDragging = false
+        
+        // If user was dragging, disable agent tracking
+        if event.deltaX != 0 || event.deltaY != 0 {
+            isTrackingAgent = false
+        }
         
         // Stop targeting after a short delay to allow smooth finish
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
@@ -268,6 +289,9 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
         
         // Only proceed if we're actually changing zoom
         if newTargetZoom != targetZoom {
+            // Disable agent tracking when user manually zooms
+            isTrackingAgent = false
+            
             targetZoom = newTargetZoom
             hasTargetZoom = true
             
@@ -383,19 +407,44 @@ class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate
             return
         }
         
-        // Calculate world position for this agent
-        let worldX = CGFloat(agent.position.x) * tileSize + (tileSize / 2)
-        let worldY = CGFloat(agent.position.y) * tileSize + (tileSize / 2)
+        // Enable agent tracking mode
+        isTrackingAgent = true
         
-        // Set target zoom (zoom in a bit)
+        // Use a higher zoom level for better visibility
         targetZoom = 3.0
         hasTargetZoom = true
         
-        // Set target position
+        // Calculate world position for this agent - center precisely
+        let worldX = CGFloat(agent.position.x) * tileSize + (tileSize / 2)
+        let worldY = CGFloat(agent.position.y) * tileSize + (tileSize / 2)
+        
+        // Force immediate position update to center exactly on the agent
         cameraTargetPosition = CGPoint(x: worldX, y: worldY)
         hasTargetPosition = true
         
-        logger.info("Focusing on agent \(id) at position (\(agent.position.x), \(agent.position.y))")
+        // First, cancel any existing camera constraints to ensure our new target is prioritized
+        self.cameraNode.constraints = nil
+        
+        // Apply an immediate position change to avoid delay
+        let moveAction = SKAction.move(to: CGPoint(x: worldX, y: worldY), duration: 0.5)
+        moveAction.timingMode = .easeOut
+        cameraNode.run(moveAction)
+        
+        // Make another target update after a short delay to ensure centering
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self = self, self.world.agents[id] != nil else { return }
+            
+            // Second precise position update
+            self.cameraTargetPosition = CGPoint(x: worldX, y: worldY)
+            self.hasTargetPosition = true
+            
+            // After the camera has moved (with some delay), disable tracking
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                self?.isTrackingAgent = false
+            }
+            
+            self.logger.info("Focusing on agent \(id) at position (\(agent.position.x), \(agent.position.y)) - world coordinates: (\(worldX), \(worldY))")
+        }
     }
     
     func regenerateWorld() {
