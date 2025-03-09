@@ -91,6 +91,34 @@ actor NetworkService {
         }
     }
     
+    func sendAction(_ action: AgentAction) async throws {
+        guard let connection = self.connection else {
+            throw NSError(domain: "NetworkService", code: 2, userInfo: [
+                NSLocalizedDescriptionKey: "No active connection"
+            ])
+        }
+        
+        // Encode the action to JSON
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(action)
+        
+        // Log the action being sent
+        if let jsonString = String(data: data, encoding: .utf8) {
+            logger.debug("📤 Sending action: \(jsonString)")
+        }
+        
+        // Send the data
+        return try await withCheckedThrowingContinuation { continuation in
+            connection.send(content: data, contentContext: .defaultMessage, isComplete: true, completion: .contentProcessed { error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: ())
+                }
+            })
+        }
+    }
+    
     func disconnect() {
         logger.info("👋 Disconnecting from \(self.host):\(self.port)")
         connection?.cancel()
