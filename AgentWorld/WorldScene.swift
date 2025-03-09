@@ -11,7 +11,7 @@ import OSLog
 class WorldScene: SKScene, InputHandlerDelegate, ServerConnectionManagerDelegate {
     // Change from private to internal access level to allow synchronization
     internal var world: World!
-    private var tileSize: CGFloat = 10
+    internal var tileSize: CGFloat = 10
     private var worldRenderer: WorldRenderer!
     private var inputHandler: InputHandler!
     private var currentTimeStep: Int = 0

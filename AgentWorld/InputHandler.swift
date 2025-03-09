@@ -23,7 +23,18 @@ class InputHandler {
     func handleMouseDown(with event: NSEvent, in scene: SKScene) {
         // Convert screen position to scene position (accounts for camera position and zoom)
         let location = event.location(in: scene)
-        logger.debug("Click at \(location)")
+        
+        // Get the tile size from the scene if it's a WorldScene
+        let tileSize: CGFloat
+        if let worldScene = scene as? WorldScene {
+            tileSize = worldScene.tileSize
+        } else {
+            tileSize = 32 // Default fallback
+        }
+        
+        // Convert scene position to tile coordinates
+        let (tileX, tileY) = convertToWorldPosition(scenePosition: location, tileSize: tileSize, in: scene)
+        logger.debug("Tap at tile coordinates: (\(tileX), \(tileY))")
         
         // Inform delegate of click position
         delegate?.inputHandler(self, didClickAtPosition: location)
