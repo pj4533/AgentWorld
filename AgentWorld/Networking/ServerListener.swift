@@ -11,7 +11,8 @@ import OSLog
 
 class ServerListener {
     private let logger = AppLogger(category: "ServerListener")
-    private var listener: ListenerProtocol?
+    // Make listener internal for testing
+    internal var listener: ListenerProtocol?
     private let factory: NetworkFactory
     private weak var manager: ServerConnectionManager?
     
@@ -75,14 +76,22 @@ class ServerListener {
     }
     
     private func handleListenerFailure(_ error: Error) {
-        // Try to restart after a delay
+        // Notify manager about the failure
+        manager?.handleServerError(error)
+        
+        // Only attempt restart if manager is still valid
+        guard let manager = manager else { return }
+        
+        // Cancel current listener
+        listener?.cancel()
+        listener = nil
+        
+        // Try to restart after a delay, but only once
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
-            guard let self = self else { return }
-            
-            self.listener?.cancel()
+            guard let self = self, self.listener == nil else { return }
             
             // Try to restart listener
-            if let port = self.listener?.port?.rawValue ?? NWEndpoint.Port(rawValue: 8000)?.rawValue {
+            if let port = NWEndpoint.Port(rawValue: 8000)?.rawValue {
                 do {
                     try self.start(port: port)
                 } catch {

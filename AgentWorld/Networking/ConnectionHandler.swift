@@ -9,11 +9,15 @@ import Foundation
 import Network
 import OSLog
 
-class ConnectionHandler {
+class ConnectionHandler: CustomStringConvertible {
     private let logger = AppLogger(category: "ConnectionHandler")
     private var connection: ConnectionProtocol
     private let agentId: String
     private weak var manager: ServerConnectionManager?
+    
+    var description: String {
+        return "ConnectionHandler for agent: \(agentId)"
+    }
     
     init(connection: ConnectionProtocol, agentId: String, manager: ServerConnectionManager) {
         self.connection = connection
@@ -22,6 +26,7 @@ class ConnectionHandler {
     }
     
     func start(queue: DispatchQueue) {
+        setupStateHandler()
         connection.start(queue: queue)
         logger.info("Started connection for agent: \(agentId)")
     }
@@ -74,8 +79,11 @@ class ConnectionHandler {
                 // Process the received data through the manager
                 self.manager?.handleReceivedMessage(data, from: self.agentId)
                 
-                // Continue receiving messages
-                self.receiveMessage()
+                // Continue receiving messages only if manager still exists
+                // This prevents a potential loop if the agent is being removed
+                if self.manager != nil {
+                    self.receiveMessage()
+                }
             } else if isComplete {
                 self.logger.info("Connection \(self.agentId) closed by remote peer")
                 self.manager?.removeAgent(self.agentId)

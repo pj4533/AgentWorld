@@ -40,9 +40,9 @@ class MockServerConnectionManager: ServerConnectionManager {
 
 @Suite struct WorldSceneTimestepTests {
     
-    // Test helper to create a test world
-    func createTestWorld() -> World {
-        var world = World()
+    // Test helper to create a test world with a unique agent
+    func createTestWorld() -> (World, String) {
+        let world = World()
         
         // Setup known tiles
         for y in 0..<World.size {
@@ -51,30 +51,38 @@ class MockServerConnectionManager: ServerConnectionManager {
             }
         }
         
-        // Add a specific agent
-        world.agents["test-agent"] = AgentInfo(id: "test-agent", position: (x: 5, y: 5), color: .red)
+        // Add a specific agent with unique ID to prevent test collisions
+        let uniqueAgentId = "test-agent-\(UUID().uuidString)"
+        world.agents[uniqueAgentId] = AgentInfo(
+            id: uniqueAgentId, 
+            position: (x: 5, y: 5), 
+            color: .red
+        )
         
-        return world
+        return (world, uniqueAgentId)
     }
     
     // Test that simulateOneTimeStep correctly synchronizes world state before sending observations
     @Test func testSimulateTimeStepSynchronizesWorld() {
         // Create a world with an agent at a known position
-        let world = createTestWorld()
+        let (world, agentID) = createTestWorld()
         
-        // Create a mock server connection manager
+        // Create a fresh mock server connection manager for this test
         let mockServer = MockServerConnectionManager(world: world)
         
         // Verify the agent is in the initial position
-        let agentID = "test-agent"
-        #expect(mockServer.world.agents[agentID]?.position.x == 5)
+        #expect(mockServer.world.agents[agentID]?.position.x == 5, "Agent should start at x=5")
+        
+        // Clear any previous data
+        mockServer.agentPositionsAtObservation = [:]
+        mockServer.sendObservationsCalledWith = nil
         
         // Verify that when we call sendObservationsToAll, it records positions correctly
         mockServer.sendObservationsToAll(timeStep: 1)
         
         // The method should record the agent's position
-        #expect(mockServer.sendObservationsCalledWith == 1)
-        #expect(mockServer.agentPositionsAtObservation[agentID]?.x == 5)
-        #expect(mockServer.agentPositionsAtObservation[agentID]?.y == 5)
+        #expect(mockServer.sendObservationsCalledWith == 1, "Send observation should be called with timestep 1")
+        #expect(mockServer.agentPositionsAtObservation[agentID]?.x == 5, "Recorded agent x position should be 5")
+        #expect(mockServer.agentPositionsAtObservation[agentID]?.y == 5, "Recorded agent y position should be 5")
     }
 }

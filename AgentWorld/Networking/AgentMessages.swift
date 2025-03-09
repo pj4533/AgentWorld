@@ -89,4 +89,5 @@ struct AgentMessageParser {
 
 extension Notification.Name {
     static let agentsDidChange = Notification.Name("agentsDidChange")
+    static let timeStepAdvanced = Notification.Name("timeStepAdvanced")
 }

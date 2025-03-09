@@ -57,6 +57,9 @@ class SimulationViewModel: ObservableObject {
     func advanceTimeStep() {
         currentTimeStep += 1
         
+        // Notify observers about the time step advancement
+        NotificationCenter.default.post(name: .timeStepAdvanced, object: currentTimeStep)
+        
         // If not running in auto mode but manually stepped, update the progress display
         if !isSimulationRunning {
             progressToNextStep = 0.0

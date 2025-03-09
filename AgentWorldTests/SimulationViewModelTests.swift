@@ -10,14 +10,32 @@ import Testing
 
 @Suite
 struct SimulationViewModelTests {
-    let viewModel: SimulationViewModel
+    // Patch WorldGenerator.generateWorld to prevent global state issues
+    private class MockWorld: World {
+        static func createIsolatedWorld() -> World {
+            let world = World()
+            // Initialize with predictable tiles
+            for y in 0..<World.size {
+                for x in 0..<World.size {
+                    world.tiles[y][x] = .grass
+                }
+            }
+            return world
+        }
+    }
     
-    init() {
-        viewModel = SimulationViewModel()
+    // Create a fresh viewModel for each test to ensure test isolation
+    // This includes a fresh World instance to avoid shared state
+    func createViewModel() -> SimulationViewModel {
+        let viewModel = SimulationViewModel()
+        // Directly set the world property to a fresh isolated instance
+        viewModel.world = MockWorld.createIsolatedWorld()
+        return viewModel
     }
     
     @Test
     func testInitialState() {
+        let viewModel = createViewModel()
         #expect(viewModel.currentTimeStep == 0)
         #expect(viewModel.shouldRegenerateWorld == false)
         #expect(viewModel.isSimulationRunning == false)
@@ -27,6 +45,8 @@ struct SimulationViewModelTests {
     
     @Test
     func testToggleSimulation() {
+        let viewModel = createViewModel()
+        
         // Test enabling simulation
         viewModel.toggleSimulation()
         #expect(viewModel.isSimulationRunning == true)
@@ -38,6 +58,7 @@ struct SimulationViewModelTests {
     
     @Test
     func testRegenerateWorld() {
+        let viewModel = createViewModel()
         #expect(viewModel.shouldRegenerateWorld == false)
         viewModel.regenerateWorld()
         #expect(viewModel.shouldRegenerateWorld == true)
@@ -45,6 +66,7 @@ struct SimulationViewModelTests {
     
     @Test
     func testAdvanceTimeStep() {
+        let viewModel = createViewModel()
         #expect(viewModel.currentTimeStep == 0)
         viewModel.advanceTimeStep()
         #expect(viewModel.currentTimeStep == 1)
@@ -56,6 +78,8 @@ struct SimulationViewModelTests {
     
     @Test
     func testDecreaseTimeStepInterval() {
+        let viewModel = createViewModel()
+        
         // Direct access to set initial value
         viewModel.timeStepInterval = 60
         #expect(viewModel.timeStepInterval == 60)
@@ -77,6 +101,8 @@ struct SimulationViewModelTests {
     
     @Test
     func testIncreaseTimeStepInterval() {
+        let viewModel = createViewModel()
+        
         // Direct access to set initial value
         viewModel.timeStepInterval = 60
         #expect(viewModel.timeStepInterval == 60)
@@ -98,6 +124,8 @@ struct SimulationViewModelTests {
     
     @Test(arguments: [0, 1, 12, 144, 287])
     func testFormatTimeOfDay(timeStep: Int) {
+        let viewModel = createViewModel()
+        
         let timeOfDayInMinutes = (timeStep % 288) * 5
         let hours = timeOfDayInMinutes / 60
         let minutes = timeOfDayInMinutes % 60
@@ -109,6 +137,8 @@ struct SimulationViewModelTests {
     
     @Test
     func testGetRemainingSeconds() {
+        let viewModel = createViewModel()
+        
         // Because we're calculating with TimeInterval (Double),
         // there might be very small floating point differences in the results
         
@@ -137,6 +167,8 @@ struct SimulationViewModelTests {
     
     @Test
     func testMinMaxTimeStepInterval() {
+        let viewModel = createViewModel()
+        
         // Test min interval detection
         viewModel.timeStepInterval = 60
         #expect(!viewModel.isMinTimeStepIntervalReached())

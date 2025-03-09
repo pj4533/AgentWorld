@@ -11,7 +11,7 @@ import Testing
 @Suite struct WorldTests {
     
     @Test func testAgentPlacement() {
-        var world = World()
+        let world = World()
         
         // Try to place an agent
         let position = world.placeAgent(id: "test-agent-1")
@@ -33,7 +33,7 @@ import Testing
     }
     
     @Test func testAgentRemoval() {
-        var world = World()
+        let world = World()
         
         // Place an agent
         let _ = world.placeAgent(id: "test-agent-1")
@@ -50,7 +50,7 @@ import Testing
     }
     
     @Test func testMoveAgent() {
-        var world = World()
+        let world = World()
         
         // Place an agent
         let position = world.placeAgent(id: "test-agent-1")
@@ -81,7 +81,7 @@ import Testing
     }
     
     @Test func testIsValidForAgent() {
-        var world = World()
+        let world = World()
         
         // Set up a test world with known tile types
         for y in 0..<World.size {
@@ -112,7 +112,7 @@ import Testing
     }
     
     @Test func testSurroundings() {
-        var world = World()
+        let world = World()
         
         // Set up a simple world with known tile types
         for y in 0..<World.size {
@@ -151,7 +151,7 @@ import Testing
     }
     
     @Test func testCreateObservation() {
-        var world = World()
+        let world = World()
         
         // Set up a simple world with known tile types
         for y in 0..<World.size {

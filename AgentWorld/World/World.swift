@@ -146,13 +146,16 @@ class World {
         let logger = AppLogger(category: "World")
         
         // Verify the agent exists
-        guard var agent = agents[id] else {
+        guard agents[id] != nil else {
             logger.error("moveAgent: Agent \(id) not found in world")
             return false
         }
         
+        // Create a new AgentInfo instance to replace the old one (handling struct value semantics)
+        let originalAgent = agents[id]!
+        
         // Log original position for debugging
-        logger.debug("moveAgent: Agent \(id) current position: (\(agent.position.x), \(agent.position.y))")
+        logger.debug("moveAgent: Agent \(id) current position: (\(originalAgent.position.x), \(originalAgent.position.y))")
         
         // Check if the position is in bounds
         guard position.x >= 0 && position.x < World.size && position.y >= 0 && position.y < World.size else {
@@ -167,7 +170,7 @@ class World {
         }
         
         // Check if the move is valid (only one tile distance)
-        let currentPos = agent.position
+        let currentPos = originalAgent.position
         let dx = abs(position.x - currentPos.x)
         let dy = abs(position.y - currentPos.y)
         
@@ -177,16 +180,22 @@ class World {
             return false
         }
         
-        // Update agent position with the new coordinates
-        agent.position = position
-        agents[id] = agent
+        // Create a new agent with the updated position
+        let updatedAgent = AgentInfo(
+            id: originalAgent.id,
+            position: position,
+            color: originalAgent.color
+        )
+        
+        // Replace the old agent in the dictionary
+        agents[id] = updatedAgent
         
         // Verify the update was successful
-        if let updatedAgent = agents[id] {
-            if updatedAgent.position.x == position.x && updatedAgent.position.y == position.y {
+        if let verifyAgent = agents[id] {
+            if verifyAgent.position.x == position.x && verifyAgent.position.y == position.y {
                 logger.debug("moveAgent: Successfully updated agent \(id) position to (\(position.x), \(position.y))")
             } else {
-                logger.error("moveAgent: Failed to update agent position! Current: (\(updatedAgent.position.x), \(updatedAgent.position.y)), Target: (\(position.x), \(position.y))")
+                logger.error("moveAgent: Failed to update agent position! Current: (\(verifyAgent.position.x), \(verifyAgent.position.y)), Target: (\(position.x), \(position.y))")
             }
         }
         

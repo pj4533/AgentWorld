@@ -11,12 +11,12 @@ import SpriteKit
 @testable import AgentWorld
 
 @Suite struct WorldRendererTests {
-    let testWorld: World
     let tileSize: CGFloat = 10.0
     
-    init() {
+    // Create a fresh test world for each test to ensure isolation
+    func createTestWorld() -> World {
         // Create a test world with a pattern for verification
-        var world = World()
+        let world = World()
         // Create a checkerboard pattern of water and grass
         for y in 0..<World.size {
             for x in 0..<World.size {
@@ -27,12 +27,13 @@ import SpriteKit
                 }
             }
         }
-        self.testWorld = world
+        return world
     }
     
     @Test func renderWorldAddsCorrectNumberOfNodesToScene() {
         // Create a test scene
         let scene = SKScene(size: CGSize(width: 640, height: 640))
+        let testWorld = createTestWorld()
         let renderer = WorldRenderer(world: testWorld, tileSize: tileSize)
         
         // Render the world
@@ -53,6 +54,7 @@ import SpriteKit
     @Test func renderWorldPositionsNodesCorrectly() {
         // Create a test scene
         let scene = SKScene(size: CGSize(width: 640, height: 640))
+        let testWorld = createTestWorld()
         let renderer = WorldRenderer(world: testWorld, tileSize: tileSize)
         
         // Render the world
@@ -99,6 +101,7 @@ import SpriteKit
         #expect(scene.children.count == 1)
         
         // Render the world
+        let testWorld = createTestWorld()
         let renderer = WorldRenderer(world: testWorld, tileSize: tileSize)
         renderer.renderWorld(in: scene)
         
@@ -122,6 +125,7 @@ import SpriteKit
     @Test func renderWorldUsesCorrectTileTypes() {
         // Create a test scene
         let scene = SKScene(size: CGSize(width: 640, height: 640))
+        let testWorld = createTestWorld()
         let renderer = WorldRenderer(world: testWorld, tileSize: tileSize)
         
         // Render the world
@@ -142,6 +146,7 @@ import SpriteKit
     @Test func renderWorldReusesCachedNodes() {
         // Create a test scene
         let scene = SKScene(size: CGSize(width: 640, height: 640))
+        let testWorld = createTestWorld()
         let renderer = WorldRenderer(world: testWorld, tileSize: tileSize)
         
         // First render - should create all nodes
@@ -173,6 +178,7 @@ import SpriteKit
     @Test func clearTileCacheCreatesNewNodes() {
         // Create a test scene
         let scene = SKScene(size: CGSize(width: 640, height: 640))
+        let testWorld = createTestWorld()
         let renderer = WorldRenderer(world: testWorld, tileSize: tileSize)
         
         // First render - should create all nodes
@@ -184,27 +190,29 @@ import SpriteKit
             return
         }
         
-        // Keep track of first container
-        let firstContainer = firstTileContainer
+        // Store the number of children in the first container
+        let firstChildrenCount = firstTileContainer.children.count
         
         // Clear the cache
         renderer.clearTileCache()
         
-        // Render again - should create new container nodes
+        // Render again - should create new tiles in the container
         renderer.renderWorld(in: scene)
         
-        // Get the new container
+        // Get the container after re-rendering
         guard let secondTileContainer = scene.childNode(withName: "tileContainer") else {
             #expect(false, "Could not find tile container after second render")
             return
         }
         
-        // Check that containers are different after cache is cleared
-        // But this might not be true with the current implementation, so let's check the children
-        
-        // If the containers are the same, the children count should still be correct
+        // The WorldRenderer implementation might reuse the container but create new children.
+        // Let's just verify that the container has the correct number of children
         #expect(secondTileContainer.children.count == World.size * World.size, 
                "Container should have the correct number of children")
+        
+        // We can also check that the first container is still valid
+        #expect(firstChildrenCount == World.size * World.size, 
+               "First container should have the correct initial number of children")
     }
 }
 

@@ -49,7 +49,7 @@ import Testing
         
         // Verify the overall tile count matches world size
         let totalTileCount = tileCounts.values.reduce(0, +)
-        #expect(totalTileCount == World.size * World.size)
+        #expect(totalTileCount == World.size * World.size, "Total tile count should match World.size^2")
     }
 }
 

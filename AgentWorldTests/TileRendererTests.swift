@@ -12,13 +12,14 @@ import SpriteKit
 
 @Suite struct TileRendererTests {
     let tileSize: CGFloat = 20.0
-    let tileRenderer: TileRenderer
     
-    init() {
-        tileRenderer = TileRenderer(tileSize: tileSize)
+    func createTileRenderer() -> TileRenderer {
+        return TileRenderer(tileSize: tileSize)
     }
     
     @Test func createTileNodeProducesSpriteNode() {
+        let tileRenderer = createTileRenderer()
+        
         // Test with all tile types
         for tileType in TileType.allCases {
             let size = CGSize(width: tileSize, height: tileSize)
@@ -36,6 +37,7 @@ import SpriteKit
     }
     
     @Test func createTileNodesWithDifferentTileTypesProducesDifferentResults() {
+        let tileRenderer = createTileRenderer()
         let size = CGSize(width: tileSize, height: tileSize)
         
         // Create nodes for different tile types
