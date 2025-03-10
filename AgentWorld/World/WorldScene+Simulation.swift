@@ -160,7 +160,15 @@ extension WorldScene {
         
         logger.debug("Camera reset: position=\(cameraNode.position), zoom=\(currentZoom)")
         
-        // Notify that agents have changed (they've all been removed in the new world)
-        NotificationCenter.default.post(name: .agentsDidChange, object: nil)
+        // Only notify about world change if we have agents (which we don't in a fresh world)
+        // This helps avoid unnecessary notifications that could create update cycles
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self = self else { return }
+            
+            // Notify that the world has been regenerated with the finalized world object
+            // Use a small delay to ensure all other updates have completed
+            self.logger.info("🌍 Posting world regeneration notification - no agents in new world")
+            NotificationCenter.default.post(name: .agentsDidChange, object: self.world)
+        }
     }
 }

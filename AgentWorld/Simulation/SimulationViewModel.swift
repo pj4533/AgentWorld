@@ -50,8 +50,16 @@ class SimulationViewModel: ObservableObject {
     }
     
     func regenerateWorld() {
+        // Only set the flag to trigger world regeneration in SpriteKitContainer
+        // The actual world regeneration happens in WorldScene.regenerateWorld()
+        // which will send the updated world via notification
         shouldRegenerateWorld = true
+        
+        // Create an initial new world
         world = World.generateWorld()
+        
+        // Reset timeStep to match the new world
+        currentTimeStep = 0
     }
     
     func advanceTimeStep() {
@@ -117,8 +125,17 @@ class SimulationViewModel: ObservableObject {
         ) { [weak self] notification in
             guard let self = self else { return }
             
+            // Critical fix: Don't update world during a world regeneration
+            if self.shouldRegenerateWorld {
+                // Skip updating the world if we're in the middle of regeneration
+                // to avoid creating a circular update pattern
+                self.logger.debug("⚠️ Skipping world update during regeneration")
+                return
+            }
+            
             // Update our world reference if provided
             if let updatedWorld = notification.object as? World {
+                self.logger.debug("🔄 Updating ViewModel world from notification")
                 self.world = updatedWorld
             }
             

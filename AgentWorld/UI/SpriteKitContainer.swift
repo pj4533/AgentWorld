@@ -72,17 +72,26 @@ struct SpriteKitContainer: NSViewRepresentable {
     func updateNSView(_ nsView: ZoomableSkView, context: Context) {
         guard let scene = context.coordinator.scene else { return }
         
-        // Check if we should regenerate the world
+        // Check if we should regenerate the world - immediately reset flag to prevent loops
         if shouldRegenerateWorld {
-            // Set the new world from the viewModel
-            scene.setWorld(viewModel.world)
-            scene.regenerateWorld()
+            // CRITICAL: Immediately reset the flag locally to prevent multiple regenerations
+            let needsRegen = shouldRegenerateWorld
             
-            // Reset the flag
+            // Use self directly to avoid capturing in closure
             DispatchQueue.main.async {
-                shouldRegenerateWorld = false
-                // Also reset the time step in ContentView to match the reset in WorldScene
-                currentTimeStep = 0
+                self.shouldRegenerateWorld = false
+            }
+            
+            // Only proceed if we really need to regenerate
+            if needsRegen {
+                // Set the new world from the viewModel
+                scene.setWorld(viewModel.world)
+                scene.regenerateWorld()
+                
+                // Reset the time step in ContentView to match the reset in WorldScene
+                DispatchQueue.main.async {
+                    self.currentTimeStep = 0
+                }
             }
         }
         
